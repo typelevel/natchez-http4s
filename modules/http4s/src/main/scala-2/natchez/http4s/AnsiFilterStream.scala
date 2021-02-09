@@ -7,7 +7,7 @@ package natchez.http4s
 import java.io.{OutputStream, FilterOutputStream}
 
 /** Filter ANSI codes out of an OutputStream. */
-private[http4s] class AnsiFilterStream(os: OutputStream) extends FilterOutputStream(os) {
+class AnsiFilterStream(os: OutputStream) extends FilterOutputStream(os) {
   case class State(apply: Int => State)
 
   val S: State = State {
