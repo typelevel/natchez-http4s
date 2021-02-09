@@ -21,7 +21,7 @@ lazy val commonSettings = Seq(
   // Headers
   headerMappings := headerMappings.value + (HeaderFileType.scala -> HeaderCommentStyle.cppStyleLineComment),
   headerLicense  := Some(HeaderLicense.Custom(
-    """|Copyright (c) 2021 by Rob Norris and Contributors
+    """|Copyright (c) 2021 by Rob Norris
        |This software is licensed under the MIT License (MIT).
        |For more information see LICENSE or https://opensource.org/licenses/MIT
        |""".stripMargin
@@ -83,7 +83,7 @@ lazy val http4s = project
   .settings(commonSettings)
   .settings(
     publish / skip := isDotty.value,
-    name        := "natchez-http4s-http4s",
+    name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
       "org.tpolecat" %% "natchez-core" % "0.0.19",
