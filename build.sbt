@@ -121,7 +121,7 @@ lazy val docs = project
   .settings(commonSettings)
   .settings(
     scalacOptions      := Nil,
-    git.remoteRepo     := "git@github.com:tpolecat/natchez.git",
+    git.remoteRepo     := "git@github.com:tpolecat/natchez-http4s.git",
     ghpagesNoJekyll    := true,
     publish / skip     := true,
     paradoxTheme       := Some(builtinParadoxTheme("generic")),
