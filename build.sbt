@@ -74,6 +74,7 @@ lazy val commonSettings = Seq(
 )
 
 // root project
+commonSettings
 crossScalaVersions := Nil
 publish / skip     := true
 
