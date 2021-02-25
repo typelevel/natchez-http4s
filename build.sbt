@@ -1,11 +1,11 @@
 
 val scala212Version        = "2.12.12"
-val scala213Version        = "2.13.4"
-val scala30PreviousVersion = "3.0.0-M2"
-val scala30Version         = "3.0.0-M3"
+val scala213Version        = "2.13.5"
+val scala30PreviousVersion = "3.0.0-M3"
+val scala30Version         = "3.0.0-RC1"
 
-val catsVersion       = "2.3.1"
-val catsEffectVersion = "2.3.1"
+val catsVersion       = "2.4.2"
+val catsEffectVersion = "2.3.3"
 
 // Global Settings
 lazy val commonSettings = Seq(
@@ -87,7 +87,7 @@ lazy val http4s = project
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-core"  % "0.0.19",
+      "org.tpolecat" %% "natchez-core"  % "0.0.20",
       "org.http4s"   %% "http4s-core"   % "0.21.15",
       "org.http4s"   %% "http4s-client" % "0.21.15",
     ).filterNot(_ => isDotty.value)
@@ -104,7 +104,7 @@ lazy val examples = project
     description          := "Example programs for Natchez-Http4s.",
     scalacOptions        -= "-Xfatal-warnings",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-jaeger"      % "0.0.19",
+      "org.tpolecat" %% "natchez-jaeger"      % "0.0.20",
       "org.http4s"   %% "http4s-dsl"          % "0.21.15",
       "org.http4s"   %% "http4s-ember-server" % "0.21.15",
       "org.slf4j"     % "slf4j-simple"        % "1.7.30",
