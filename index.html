@@ -12,6 +12,7 @@
 <script type="text/javascript" src="js/page.js"></script>
 <script type="text/javascript" src="js/warnOldVersion.js"></script>
 <script type="text/javascript" src="js/groups.js"></script>
+<script type="text/javascript" src="js/snippets.js"></script>
 <link rel="stylesheet" type="text/css" href="lib/foundation/dist/foundation.min.css"/>
 <link rel="stylesheet" type="text/css" href="css/page.css"/>
 
@@ -31,7 +32,7 @@
 <span class="home-icon">⌂</span>Natchez-Http4s
 </a>
 <div class="version-number">
-0.0.1
+0.0.3
 </div>
 </div>
 <div class="nav-toc">
@@ -67,7 +68,7 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <span class="home-icon">⌂</span>Natchez-Http4s
 </a>
 <div class="version-number">
-0.0.1
+0.0.3
 </div>
 </div>
 <div class="nav-toc">
@@ -94,7 +95,8 @@ C16.952,7,17,6.553,17,6c0-0.553-0.048-1-0.6-1H3.6C3.048,5,3,5.447,3,6C3,6.553,3.
 <p>This is a support library for using <a href="">Natchez</a> with <a href="">Http4s</a>. It provides the following things:</p>
 <ol>
   <li>A mechanism to discharge a <code>Trace[F]</code> constraint on <code>HttpRoutes[F]</code>, which constructs the required ambient span from incoming headers when possible, otherwise creating a root span.</li>
-  <li>A middleware which adds standard request/response header information to the top-level span associated with a request, as well as extended fields for failure cases.</li>
+  <li>A server middleware which adds standard request/response header information to the top-level span associated with a request, as well as extended fields for failure cases.</li>
+  <li>A client middleware which creates a span around outgoing requests and sends that span&rsquo;s kernel in outgoing headers.</li>
 </ol>
 <p>See below, then check out the <code>examples/</code> module in the repo for a working example with a real tracing back-end.</p>
 <h2><a href="#tracing-httproutes" name="tracing-httproutes" class="anchor"><span class="anchor-link"></span></a>Tracing HttpRoutes</h2>
@@ -125,7 +127,6 @@ def mkRoutes[F[_]](ep: EntryPoint[F])(
   ep.liftT(mkTracedRoutes)
 </code></pre>
 <p>The trick here is that <code>liftT</code> takes an <code>HttpRoutes[Kleisl[F, Span[F], *]]</code>, but this type is usually inferred so we never know or care that we&rsquo;re using <code>Kleisli</code>. If you do need to provide an explicit type argument, that&rsquo;s what it is.</p>
-<h2><a href="#tracing-httproutes-resources" name="tracing-httproutes-resources" class="anchor"><span class="anchor-link"></span></a>Tracing HttpRoutes Resources</h2>
 <p>We also provide <code>liftR</code>, which is analogous to <code>liftT</code> but works for <code>Resource[F, HttpRoutes[F]]</code>.</p>
 <pre class="prettyprint"><code class="language-scala">import cats.Defer
 import cats.effect.Resource
@@ -139,8 +140,8 @@ def mkRoutesResource[F[_]: Defer](ep: EntryPoint[F])(
 ): Resource[F, HttpRoutes[F]] =
   ep.liftR(mkTracedRoutesResource)
 </code></pre>
-<h2><a href="#middleware" name="middleware" class="anchor"><span class="anchor-link"></span></a>Middleware</h2>
-<p><code>NatchezMiddleware</code> adds the following &ldquo;standard&rdquo; fields to the top-level span associated with each request.</p>
+<h2><a href="#server-middleware" name="server-middleware" class="anchor"><span class="anchor-link"></span></a>Server Middleware</h2>
+<p><code>NatchezMiddleware.server(&lt;routes&gt;)</code> adds the following &ldquo;standard&rdquo; fields to the top-level span associated with each request.</p>
 <table>
   <thead>
     <tr>
@@ -200,17 +201,45 @@ def mkRoutesResource[F[_]: Defer](ep: EntryPoint[F])(
 def mkRoutes2[F[_]](ep: EntryPoint[F])(
   implicit ev: Bracket[F, Throwable]
 ): HttpRoutes[F] =
-  ep.liftT(NatchezMiddleware(mkTracedRoutes)) // type arguments are inferred as above
+  ep.liftT(NatchezMiddleware.server(mkTracedRoutes)) // type arguments are inferred as above
 </code></pre>
+<h2><a href="#client-middleware" name="client-middleware" class="anchor"><span class="anchor-link"></span></a>Client Middleware</h2>
+<p><code>NatchezMiddleware.client(&lt;client&gt;)</code> adds a span called <code>http4s-client-request</code> around outgoing requests, with the following fields.</p>
+<table>
+  <thead>
+    <tr>
+      <th>Field </th>
+      <th>Type </th>
+      <th>Description </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>client.http.method</code> </td>
+      <td>String </td>
+      <td><code>&quot;GET&quot;</code>, <code>&quot;PUT&quot;</code>, etc. </td>
+    </tr>
+    <tr>
+      <td><code>client.http.url</code> </td>
+      <td>String </td>
+      <td>request URI </td>
+    </tr>
+    <tr>
+      <td><code>client.http.status_code</code> </td>
+      <td>String (!) </td>
+      <td><code>&quot;200&quot;</code>, <code>&quot;403&quot;</code>, etc. </td>
+    </tr>
+  </tbody>
+</table>
 <h2><a href="#limitations" name="limitations" class="anchor"><span class="anchor-link"></span></a>Limitations</h2>
 <p>Because we&rsquo;re instantiating <code>F</code> to <code>Kleisl[F, Span[F], *]</code> in our <code>HttpRoutes</code>, any constraints we place on <code>F</code> must be fulfillable by <code>Kleisli</code>. Things like <code>Monad</code> and <code>Deferred</code> and so on are fine, but effects that require the ability to extract a value (specifically <code>Effect</code> and <code>ConcurrentEffect</code>) are unavailable and will lead to a type error. So be aware of this constraint.</p>
 <script type="text/javascript" src="js/link_fix.js"></script>
 
 <div class="source-github">
-The source code for this page can be found <a id="source-link" href="https://github.com/tpolecat/natchez-http4s/tree/master/modules/docs/target/mdoc/index.md">here</a>.
+The source code for this page can be found <a id="source-link" href="https://github.com/tpolecat/natchez-http4s/tree/v0.0.3/modules/docs/target/mdoc/index.md">here</a>.
 </div>
 
-<script type="text/javascript">jQuery(function(){sourceUrlFix('https://github.com/tpolecat/natchez-http4s/tree/master/modules/docs/target/mdoc/index.md')});</script>
+<script type="text/javascript">jQuery(function(){sourceUrlFix('https://github.com/tpolecat/natchez-http4s/tree/v0.0.3/modules/docs/target/mdoc/index.md')});</script>
 
 </div>
 <div class="large-3 show-for-large column" data-sticky-container>
@@ -222,8 +251,8 @@ The source code for this page can be found <a id="source-link" href="https://git
   <li><a href="index.html#natchez-http4s" class="header">Natchez-Http4s</a>
   <ul>
     <li><a href="index.html#tracing-httproutes" class="header">Tracing HttpRoutes</a></li>
-    <li><a href="index.html#tracing-httproutes-resources" class="header">Tracing HttpRoutes Resources</a></li>
-    <li><a href="index.html#middleware" class="header">Middleware</a></li>
+    <li><a href="index.html#server-middleware" class="header">Server Middleware</a></li>
+    <li><a href="index.html#client-middleware" class="header">Client Middleware</a></li>
     <li><a href="index.html#limitations" class="header">Limitations</a></li>
   </ul></li>
 </ul>
@@ -292,7 +321,7 @@ The source code for this page can be found <a id="source-link" href="https://git
 <script type="text/javascript" src="lib/prettify/prettify.js"></script>
 <script type="text/javascript" src="lib/prettify/lang-scala.js"></script>
 <script type="text/javascript">jQuery(function(){window.prettyPrint && prettyPrint()});</script>
-<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.0.1', 'https://github.com/tpolecat/natchez-http4s')});</script>
+<script type="text/javascript">jQuery(function(jq){initOldVersionWarnings(jq, '0.0.3', 'https://github.com/tpolecat/natchez-http4s')});</script>
 
 
 </html>
