@@ -5,6 +5,9 @@
 package natchez
 
 package object http4s {
-  object implicits extends syntax.ToEntryPointOps
+  object implicits
+    extends syntax.ToEntryPointOps
+       with syntax.ToKernelOps
+       with syntax.ToKernelCompanionOps
 }
 

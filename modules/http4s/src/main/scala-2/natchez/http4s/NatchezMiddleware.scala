@@ -12,16 +12,24 @@ import natchez.Trace
 import natchez.Tags
 import scala.util.control.NonFatal
 import org.http4s.Response
+import org.http4s.client.Client
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
-import cats.MonadError
+import cats.effect.Resource
+
+object NatchezMiddleware {
+  import syntax.kernel._
+
+  @deprecated("Use NatchezMiddleware.service(routes)", "0.0.3")
+  def apply[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
+    server(routes)
 
   /**
    * A middleware that adds the following standard fields to the current span:
    *
    * - "http.method"      -> "GET", "PUT", etc.
    * - "http.url"         -> request URI (not URL)
-   * - "http.status_code" -> "200", "403", etc. // why is this a string*
+   * - "http.status_code" -> "200", "403", etc. // why is this a string?
    * - "error"            -> true // only present in case of error
    *
    * In addition the following non-standard fields are added in case of error:
@@ -29,9 +37,7 @@ import cats.MonadError
    * - "error.message"    -> Exception message
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
    */
-  object NatchezMiddleware {
-
-  def apply[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
+  def server[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
     Kleisli { req =>
 
       val addRequestFields: F[Unit] =
@@ -48,7 +54,8 @@ import cats.MonadError
       def addErrorFields(e: Throwable): F[Unit] =
         Trace[F].put(
           Tags.error(true),
-          "error.message"    -> {
+          "error.message"    -> e.getMessage(),
+          "error.stacktrace" -> {
             val baos = new ByteArrayOutputStream
             val fs   = new AnsiFilterStream(baos)
             val ps   = new PrintStream(fs, true, "UTF-8")
@@ -70,19 +77,33 @@ import cats.MonadError
       }
     }
 
-}
-
-object X {
-
-  def foo[F[_], A, B](f: A => B, g: B => A)(
-    implicit ev: MonadError[F, A]
-  ): MonadError[F, B] =
-    new MonadError[F, B] {
-      def pure[T](x: T): F[T] = ev.pure(x)
-      def raiseError[T](e: B): F[T] = ev.raiseError(g(e))
-      def handleErrorWith[T](fa: F[T])(h: B => F[T]): F[T] = ev.handleErrorWith(fa)(b => h(f(b)))
-      def flatMap[T, U](fa: F[T])(h: T => F[U]): F[U] = ev.flatMap(fa)(h)
-      def tailRecM[T, U](a: T)(h: T => F[Either[T,U]]): F[U] = ev.tailRecM(a)(h)
+  /**
+   * A middleware that adds the current span's kernel to outgoing requests, performs requests in
+   * a span called `http4s-client-request`, and adds the following fields to that span.
+   *
+   * - "client.http.method"      -> "GET", "PUT", etc.
+   * - "client.http.uri"         -> request URI
+   * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
+   *
+   */
+  def client[F[_]: Bracket[*[_], Throwable]: Trace](
+    client: Client[F],
+  ): Client[F] =
+    Client { req =>
+      Resource {
+        Trace[F].span("http4s-client-request") {
+          for {
+            knl  <- Trace[F].kernel
+            _    <- Trace[F].put(
+                      "client.http.uri"    -> req.uri.toString(),
+                      "client.http.method" -> req.method.toString
+                    )
+            reqʹ = req.putHeaders(knl.toHttp4sHeaders.toList :_*)
+            rsrc <- client.run(reqʹ).allocated
+            _    <- Trace[F].put("client.http.status_code" -> rsrc._1.status.code.toString())
+          } yield rsrc
+        }
+      }
     }
 
 }
