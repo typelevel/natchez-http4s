@@ -82,7 +82,7 @@ object Http4sExample extends IOApp {
   def server[F[_]: Sync: Concurrent: Timer: ContextShift]: Resource[F, Server[F]] =
     for {
       ep <- entryPoint[F]
-      ap  = ep.liftT(NatchezMiddleware(routes)).orNotFound // liftT discharges the Trace constraint
+      ap  = ep.liftT(NatchezMiddleware.server(routes)).orNotFound // liftT discharges the Trace constraint
       sv <- EmberServerBuilder.default[F].withPort(8080).withHttpApp(ap).build
     } yield sv
 

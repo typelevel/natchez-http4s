@@ -87,8 +87,9 @@ lazy val http4s = project
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-core" % "0.0.19",
-      "org.http4s"   %% "http4s-core"  % "0.21.15",
+      "org.tpolecat" %% "natchez-core"  % "0.0.19",
+      "org.http4s"   %% "http4s-core"   % "0.21.15",
+      "org.http4s"   %% "http4s-client" % "0.21.15",
     ).filterNot(_ => isDotty.value)
   )
 

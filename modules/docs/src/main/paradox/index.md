@@ -3,7 +3,8 @@
 This is a support library for using [Natchez]() with [Http4s](). It provides the following things:
 
 1. A mechanism to discharge a `Trace[F]` constraint on `HttpRoutes[F]`, which constructs the required ambient span from incoming headers when possible, otherwise creating a root span.
-1. A middleware which adds standard request/response header information to the top-level span associated with a request, as well as extended fields for failure cases.
+1. A server middleware which adds standard request/response header information to the top-level span associated with a request, as well as extended fields for failure cases.
+1. A client middleware which creates a span around outgoing requests and sends that span's kernel in outgoing headers.
 
 See below, then check out the `examples/` module in the repo for a working example with a real tracing back-end.
 
@@ -39,7 +40,6 @@ def mkRoutes[F[_]](ep: EntryPoint[F])(
 
 The trick here is that `liftT` takes an `HttpRoutes[Kleisl[F, Span[F], *]]`, but this type is usually inferred so we never know or care that we're using `Kleisli`. If you do need to provide an explicit type argument, that's what it is.
 
-## Tracing HttpRoutes Resources
 
 We also provide `liftR`, which is analogous to `liftT` but works for `Resource[F, HttpRoutes[F]]`.
 
@@ -57,9 +57,9 @@ def mkRoutesResource[F[_]: Defer](ep: EntryPoint[F])(
   ep.liftR(mkTracedRoutesResource)
 ```
 
-## Middleware
+## Server Middleware
 
-`NatchezMiddleware` adds the following "standard" fields to the top-level span associated with each request.
+`NatchezMiddleware.server(<routes>)` adds the following "standard" fields to the top-level span associated with each request.
 
 | Field              | Type       | Description                           |
 |--------------------|------------|---------------------------------------|
@@ -83,8 +83,20 @@ import natchez.http4s.NatchezMiddleware
 def mkRoutes2[F[_]](ep: EntryPoint[F])(
   implicit ev: Bracket[F, Throwable]
 ): HttpRoutes[F] =
-  ep.liftT(NatchezMiddleware(mkTracedRoutes)) // type arguments are inferred as above
+  ep.liftT(NatchezMiddleware.server(mkTracedRoutes)) // type arguments are inferred as above
 ```
+
+
+## Client Middleware
+
+`NatchezMiddleware.client(<client>)` adds a span called `http4s-client-request` around outgoing requests,
+with the following fields.
+
+| Field                     | Type       | Description            |
+|---------------------------|------------|------------------------|
+| `client.http.method`      | String     | `"GET"`, `"PUT"`, etc. |
+| `client.http.url`         | String     | request URI            |
+| `client.http.status_code` | String (!) | `"200"`, `"403"`, etc. |
 
 ## Limitations
 
