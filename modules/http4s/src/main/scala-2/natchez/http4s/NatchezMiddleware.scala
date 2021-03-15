@@ -20,7 +20,7 @@ import cats.effect.Resource
 object NatchezMiddleware {
   import syntax.kernel._
 
-  @deprecated("Use NatchezMiddleware.service(routes)", "0.0.3")
+  @deprecated("Use NatchezMiddleware.server(routes)", "0.0.3")
   def apply[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
     server(routes)
 
