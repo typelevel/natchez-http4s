@@ -7,6 +7,7 @@ package example
 import cats._
 import cats.effect._
 import cats.syntax.all._
+import com.comcast.ip4s.Port
 import io.jaegertracing.Configuration.ReporterConfiguration
 import io.jaegertracing.Configuration.SamplerConfiguration
 import natchez._
@@ -47,7 +48,7 @@ object Http4sExample extends IOApp {
     }
 
   // Our routes, in abstract F with a Trace constraint.
-  def routes[F[_]: Defer: Trace](
+  def routes[F[_]: Trace](
     implicit ev: MonadError[F, Throwable]
   ): HttpRoutes[F] = {
     object dsl extends Http4sDsl[F]; import dsl._ // bleh
@@ -79,11 +80,12 @@ object Http4sExample extends IOApp {
     }
 
   // Our main app resource
-  def server[F[_]: Sync: Concurrent: Timer: ContextShift]: Resource[F, Server[F]] =
+  def server[F[_]: Async]: Resource[F, Server] =
     for {
       ep <- entryPoint[F]
+      port <- Resource.eval(Port.fromInt(8080).liftTo[F](new Throwable("invalid port")))
       ap  = ep.liftT(NatchezMiddleware.server(routes)).orNotFound // liftT discharges the Trace constraint
-      sv <- EmberServerBuilder.default[F].withPort(8080).withHttpApp(ap).build
+      sv <- EmberServerBuilder.default[F].withPort(port).withHttpApp(ap).build
     } yield sv
 
   // Done!

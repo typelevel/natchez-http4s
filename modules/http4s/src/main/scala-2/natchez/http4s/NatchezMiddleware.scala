@@ -5,7 +5,7 @@
 package natchez.http4s
 
 import cats.data.{ Kleisli, OptionT }
-import cats.effect.Bracket
+import cats.effect.MonadCancel
 import cats.implicits._
 import org.http4s.HttpRoutes
 import natchez.Trace
@@ -21,7 +21,7 @@ object NatchezMiddleware {
   import syntax.kernel._
 
   @deprecated("Use NatchezMiddleware.server(routes)", "0.0.3")
-  def apply[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
+  def apply[F[_]: MonadCancel[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
     server(routes)
 
   /**
@@ -37,7 +37,7 @@ object NatchezMiddleware {
    * - "error.message"    -> Exception message
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
    */
-  def server[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
+  def server[F[_]: MonadCancel[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
     Kleisli { req =>
 
       val addRequestFields: F[Unit] =
@@ -86,7 +86,7 @@ object NatchezMiddleware {
    * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
    *
    */
-  def client[F[_]: Bracket[*[_], Throwable]: Trace](
+  def client[F[_]: MonadCancel[*[_], Throwable]: Trace](
     client: Client[F],
   ): Client[F] =
     Client { req =>
@@ -98,7 +98,7 @@ object NatchezMiddleware {
                       "client.http.uri"    -> req.uri.toString(),
                       "client.http.method" -> req.method.toString
                     )
-            reqʹ = req.putHeaders(knl.toHttp4sHeaders.toList :_*)
+            reqʹ = req.putHeaders(knl.toHttp4sHeaders.headers)
             rsrc <- client.run(reqʹ).allocated
             _    <- Trace[F].put("client.http.status_code" -> rsrc._1.status.code.toString())
           } yield rsrc

@@ -87,9 +87,9 @@ lazy val http4s = project
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-core"  % "0.0.20",
-      "org.http4s"   %% "http4s-core"   % "0.21.15",
-      "org.http4s"   %% "http4s-client" % "0.21.15",
+      "org.tpolecat" %% "natchez-core"  % "0.1.4",
+      "org.http4s"   %% "http4s-core"   % "1.0.0-M21",
+      "org.http4s"   %% "http4s-client" % "1.0.0-M21",
     ).filterNot(_ => isDotty.value)
   )
 
@@ -104,9 +104,9 @@ lazy val examples = project
     description          := "Example programs for Natchez-Http4s.",
     scalacOptions        -= "-Xfatal-warnings",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-jaeger"      % "0.0.20",
-      "org.http4s"   %% "http4s-dsl"          % "0.21.15",
-      "org.http4s"   %% "http4s-ember-server" % "0.21.15",
+      "org.tpolecat" %% "natchez-jaeger"      % "0.1.4",
+      "org.http4s"   %% "http4s-dsl"          % "1.0.0-M21",
+      "org.http4s"   %% "http4s-ember-server" % "1.0.0-M21",
       "org.slf4j"     % "slf4j-simple"        % "1.7.30",
     ).filterNot(_ => isDotty.value)
   )
