@@ -7,13 +7,14 @@ package natchez.http4s.syntax
 import natchez.Kernel
 import org.http4s.Headers
 import org.http4s.Header
+import org.typelevel.ci.CIString
 
 trait KernelOps {
 
   def self: Kernel
 
   def toHttp4sHeaders: Headers =
-    Headers.of(self.toHeaders.map { case (k, v) => Header(k, v) } .toSeq :_*)
+    Headers(self.toHeaders.map { case (k, v) => Header.Raw(CIString(k), v) } .toSeq)
 
 }
 
@@ -29,7 +30,7 @@ trait KernelCompanionOps {
   def self: Kernel.type
 
   def fromHttp4sHeaders(headers: Headers): Kernel =
-    Kernel(headers.toList.map { h => h.name.toString() -> h.value } .toMap)
+    Kernel(headers.headers.map { h => h.name.toString -> h.value } .toMap)
 
 }
 

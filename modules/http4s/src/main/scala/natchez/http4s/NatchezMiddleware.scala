@@ -21,7 +21,9 @@ object NatchezMiddleware {
   import syntax.kernel._
 
   @deprecated("Use NatchezMiddleware.server(routes)", "0.0.3")
-  def apply[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
+  def apply[F[_]: Trace](routes: HttpRoutes[F])(
+    implicit ev: Bracket[F, Throwable]
+  ): HttpRoutes[F] =
     server(routes)
 
   /**
@@ -37,7 +39,9 @@ object NatchezMiddleware {
    * - "error.message"    -> Exception message
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
    */
-  def server[F[_]: Bracket[*[_], Throwable]: Trace](routes: HttpRoutes[F]): HttpRoutes[F] =
+  def server[F[_]: Trace](routes: HttpRoutes[F])(
+    implicit ev: Bracket[F, Throwable]
+  ): HttpRoutes[F] =
     Kleisli { req =>
 
       val addRequestFields: F[Unit] =
@@ -86,8 +90,8 @@ object NatchezMiddleware {
    * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
    *
    */
-  def client[F[_]: Bracket[*[_], Throwable]: Trace](
-    client: Client[F],
+  def client[F[_]: Trace](client: Client[F])(
+    implicit ev: Bracket[F, Throwable]
   ): Client[F] =
     Client { req =>
       Resource {
@@ -98,7 +102,7 @@ object NatchezMiddleware {
                       "client.http.uri"    -> req.uri.toString(),
                       "client.http.method" -> req.method.toString
                     )
-            reqʹ = req.putHeaders(knl.toHttp4sHeaders.toList :_*)
+            reqʹ = req.putHeaders(knl.toHttp4sHeaders.headers)
             rsrc <- client.run(reqʹ).allocated
             _    <- Trace[F].put("client.http.status_code" -> rsrc._1.status.code.toString())
           } yield rsrc

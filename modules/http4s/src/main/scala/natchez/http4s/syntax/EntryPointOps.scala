@@ -29,12 +29,16 @@ trait EntryPointOps[F[_]] { outer =>
   ): HttpRoutes[F] =
     Kleisli { req =>
       type G[A]  = Kleisli[F, Span[F], A]
-      val lift   = λ[F ~> G](fa => Kleisli(_ => fa))
-      val kernel = Kernel(req.headers.toList.map(h => (h.name.value -> h.value)).toMap)
-      val spanR  = self.continueOrElseRoot(req.uri.path, kernel)
+      val lift   = new (F ~> G) {
+        def apply[A](fa: F[A]) = Kleisli(_ => fa)
+      }
+      val kernel = Kernel(req.headers.headers.map(h => (h.name.toString -> h.value)).toMap)
+      val spanR  = self.continueOrElseRoot(req.uri.path.toString, kernel)
       OptionT {
         spanR.use { span =>
-          val lower = λ[G ~> F](_(span))
+          val lower = new (G ~> F) {
+            def apply[A](fa: G[A]) = fa(span)
+          }
           routes.run(req.mapK(lift)).mapK(lower).map(_.mapK(lower)).value
         }
       }
@@ -50,18 +54,21 @@ trait EntryPointOps[F[_]] { outer =>
     implicit ev: Bracket[F, Throwable],
               d: Defer[F]
   ): Resource[F, HttpRoutes[F]] =
-    routes.map(liftT).mapK(λ[Kleisli[F, Span[F], *] ~> F] { fa =>
-      fa.run {
-        new Span[F] {
-          val kernel = Kernel(Map.empty).pure[F]
-          def put(fields: (String, TraceValue)*) = Monad[F].unit
-          def span(name: String) = Monad[Resource[F, *]].pure(this)
-          def traceId = Monad[F].pure(None)
-          def traceUri = Monad[F].pure(None)
-          def spanId = Monad[F].pure(None)
-        }
+    routes.map(liftT).mapK(
+      new (Kleisli[F, Span[F], *] ~> F) {
+        def apply[A](fa: Kleisli[F, Span[F], A]) =
+          fa.run {
+            new Span[F] {
+              val kernel = Kernel(Map.empty).pure[F]
+              def put(fields: (String, TraceValue)*) = Monad[F].unit
+              def span(name: String) = Monad[Resource[F, *]].pure(this)
+              def traceId = Monad[F].pure(None)
+              def traceUri = Monad[F].pure(None)
+              def spanId = Monad[F].pure(None)
+            }
+          }
       }
-    })
+    )
 
 }
 
