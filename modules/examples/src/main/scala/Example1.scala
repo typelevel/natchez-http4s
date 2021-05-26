@@ -32,7 +32,7 @@ import natchez.http4s.NatchezMiddleware
 object Http4sExample extends IOApp with Common {
 
   // Our main app resource
-  def server[F[_]: Concurrent: Timer: ContextShift]: Resource[F, Server[F]] =
+  def server[F[_]: Concurrent: Timer: ContextShift]: Resource[F, Server] =
     for {
       ep <- entryPoint[F]
       ap  = ep.liftT(NatchezMiddleware.server(routes)).orNotFound // liftT discharges the Trace constraint

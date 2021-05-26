@@ -1,11 +1,10 @@
 
-val scala212Version        = "2.12.12"
-val scala213Version        = "2.13.5"
-val scala30PreviousVersion = "3.0.0-M3"
-val scala30Version         = "3.0.0-RC1"
-
-val catsVersion       = "2.4.2"
-val catsEffectVersion = "2.3.3"
+val http4sVersion   = "0.22.0-M8"
+val natchezVersion  = "0.0.26"
+val scala212Version = "2.12.12"
+val scala213Version = "2.13.5"
+val scala30Version  = "3.0.0"
+val slf4jVersion    = "1.7.30"
 
 // Global Settings
 lazy val commonSettings = Seq(
@@ -30,42 +29,22 @@ lazy val commonSettings = Seq(
 
   // Compilation
   scalaVersion       := scala213Version,
-  crossScalaVersions := Seq(scala212Version, scala213Version, scala30PreviousVersion, scala30Version),
+  crossScalaVersions := Seq(scala212Version, scala213Version, scala30Version),
   Compile / console / scalacOptions --= Seq("-Xfatal-warnings", "-Ywarn-unused:imports"),
   Compile / doc     / scalacOptions --= Seq("-Xfatal-warnings"),
   Compile / doc     / scalacOptions ++= Seq(
     "-groups",
-    "-sourcepath", (baseDirectory in LocalRootProject).value.getAbsolutePath,
+    "-sourcepath", (LocalRootProject / baseDirectory).value.getAbsolutePath,
     "-doc-source-url", "https://github.com/tpolecat/natchez-http4s/blob/v" + version.value + "€{FILE_PATH}.scala"
   ),
   libraryDependencies ++= Seq(
-    compilerPlugin("org.typelevel" %% "kind-projector" % "0.11.3" cross CrossVersion.full),
-  ).filterNot(_ => isDotty.value),
-
-  // Add some more source directories
-  unmanagedSourceDirectories in Compile ++= {
-    val sourceDir = (sourceDirectory in Compile).value
-    CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((3, _))  => Seq(sourceDir / "scala-3")
-      case Some((2, _))  => Seq(sourceDir / "scala-2")
-      case _             => Seq()
-    }
-  },
-
-  // Also for test
-  unmanagedSourceDirectories in Test ++= {
-    val sourceDir = (sourceDirectory in Test).value
-    CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((3, _))  => Seq(sourceDir / "scala-3")
-      case Some((2, _))  => Seq(sourceDir / "scala-2")
-      case _             => Seq()
-    }
-  },
+    compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full),
+  ).filterNot(_ => scalaVersion.value.startsWith("3.")),
 
   // dottydoc really doesn't work at all right now
   Compile / doc / sources := {
     val old = (Compile / doc / sources).value
-    if (isDotty.value)
+    if (scalaVersion.value.startsWith("3."))
       Seq()
     else
       old
@@ -83,14 +62,14 @@ lazy val http4s = project
   .enablePlugins(AutomateHeaderPlugin)
   .settings(commonSettings)
   .settings(
-    publish / skip := isDotty.value,
+    publish / skip := scalaVersion.value.startsWith("3."),
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-core"  % "0.0.20",
-      "org.http4s"   %% "http4s-core"   % "0.21.15",
-      "org.http4s"   %% "http4s-client" % "0.21.15",
-    ).filterNot(_ => isDotty.value)
+      "org.tpolecat" %% "natchez-core"  % natchezVersion,
+      "org.http4s"   %% "http4s-core"   % http4sVersion,
+      "org.http4s"   %% "http4s-client" % http4sVersion,
+    )
   )
 
 lazy val examples = project
@@ -104,11 +83,11 @@ lazy val examples = project
     description          := "Example programs for Natchez-Http4s.",
     scalacOptions        -= "-Xfatal-warnings",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-jaeger"      % "0.0.20",
-      "org.http4s"   %% "http4s-dsl"          % "0.21.15",
-      "org.http4s"   %% "http4s-ember-server" % "0.21.15",
-      "org.slf4j"     % "slf4j-simple"        % "1.7.30",
-    ).filterNot(_ => isDotty.value)
+      "org.tpolecat" %% "natchez-jaeger"      % natchezVersion,
+      "org.http4s"   %% "http4s-dsl"          % http4sVersion,
+      "org.http4s"   %% "http4s-ember-server" % http4sVersion,
+      "org.slf4j"     % "slf4j-simple"        % slf4jVersion,
+    )
   )
 
 lazy val docs = project
@@ -128,7 +107,7 @@ lazy val docs = project
     paradoxTheme       := Some(builtinParadoxTheme("generic")),
     version            := version.value.takeWhile(_ != '+'), // strip off the +3-f22dca22+20191110-1520-SNAPSHOT business
     paradoxProperties ++= Map(
-      "scala-versions"            -> (crossScalaVersions in http4s).value.map(CrossVersion.partialVersion).flatten.distinct.map { case (a, b) => s"$a.$b"} .mkString("/"),
+      "scala-versions"            -> (http4s / crossScalaVersions).value.map(CrossVersion.partialVersion).flatten.distinct.map { case (a, b) => s"$a.$b"} .mkString("/"),
       "org"                       -> organization.value,
       "scala.binary.version"      -> s"2.${CrossVersion.partialVersion(scalaVersion.value).get._2}",
       "core-dep"                  -> s"${(http4s / name).value}_2.${CrossVersion.partialVersion(scalaVersion.value).get._2}",

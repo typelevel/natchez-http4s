@@ -28,7 +28,7 @@ object Http4sExampleStreamed extends IOApp with Common {
           .withPort(8080)
           .withHttpApp(finalHttpApp)
           .build >>
-        Resource.liftF(Sync[F].delay(StdIn.readLine("Server is running... Press ENTER key to stop")))
+        Resource.eval(Sync[F].delay(StdIn.readLine("Server is running... Press ENTER key to stop")))
       )
     } yield exitCode
   }.drain
