@@ -6,12 +6,11 @@ package natchez.http4s.syntax
 
 import cats.~>
 import cats.data.{ Kleisli, OptionT }
-import cats.effect.Bracket
+import cats.effect.MonadCancel
 import cats.implicits._
 import natchez.{ EntryPoint, Kernel, Span }
 import org.http4s.HttpRoutes
 import cats.effect.Resource
-import cats.Defer
 import natchez.TraceValue
 import cats.Monad
 
@@ -25,7 +24,7 @@ trait EntryPointOps[F[_]] { outer =>
    * any, or as a new root. This can likely be simplified.
    */
   def liftT(routes: HttpRoutes[Kleisli[F, Span[F], *]])(
-    implicit ev: Bracket[F, Throwable]
+    implicit ev: MonadCancel[F, Throwable]
   ): HttpRoutes[F] =
     Kleisli { req =>
       type G[A]  = Kleisli[F, Span[F], A]
@@ -51,8 +50,7 @@ trait EntryPointOps[F[_]] { outer =>
    * application and it's of little use to keep a span open that long.
    */
   def liftR(routes: Resource[Kleisli[F, Span[F], *], HttpRoutes[Kleisli[F, Span[F], *]]])(
-    implicit ev: Bracket[F, Throwable],
-              d: Defer[F]
+    implicit ev: MonadCancel[F, Throwable]
   ): Resource[F, HttpRoutes[F]] =
     routes.map(liftT).mapK(
       new (Kleisli[F, Span[F], *] ~> F) {
