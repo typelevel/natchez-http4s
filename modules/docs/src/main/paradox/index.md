@@ -6,6 +6,13 @@ This is a support library for using [Natchez]() with [Http4s](). It provides the
 1. A server middleware which adds standard request/response header information to the top-level span associated with a request, as well as extended fields for failure cases.
 1. A client middleware which creates a span around outgoing requests and sends that span's kernel in outgoing headers.
 
+Below are the available version series (see [releases](https://github.com/tpolecat/natchez-http4s/releases) for exact version numbers). You are strongly encouraged to use the **Active** series. Older series will receive bug fixes when necessary but are not actively maintained.
+
+| Series    | Status     | 2.12 | 2.13 | 3.0 | Http4s | Cats-Effect |
+|:---------:|------------|:----:|:----:|:---:|:------:|:-----------:|
+| **0.1.x** | **Active** | ✅   | ✅   | ✅   | 0.23.x | **3.x**     |
+| 0.0.x     | EOL        | ✅   | ✅   | ✅   | 0.22.x | 2.x         |
+
 See below, then check out the `examples/` module in the repo for a working example with a real tracing back-end.
 
 ## Tracing HttpRoutes
@@ -17,7 +24,7 @@ Here is the basic pattern.
 
 ```scala mdoc
 // Nothing new here
-import cats.effect.Bracket
+import cats.effect.MonadCancel
 import natchez.{ EntryPoint, Trace }
 import org.http4s.HttpRoutes
 
@@ -30,10 +37,10 @@ import natchez.http4s.implicits._
 def mkTracedRoutes[F[_]: Trace]: HttpRoutes[F] =
   ???
 
-// Given an EntryPoint in F, with (at least) `Bracket[F, Throwable]` but
+// Given an EntryPoint in F, with (at least) `MonadCancel[F, Throwable]` but
 // WITHOUT a Trace constraint, we can lift `mkTracedRoutes` into F.
 def mkRoutes[F[_]](ep: EntryPoint[F])(
-  implicit ev: Bracket[F, Throwable]
+  implicit ev: MonadCancel[F, Throwable]
 ): HttpRoutes[F] =
   ep.liftT(mkTracedRoutes)
 ```
@@ -51,8 +58,8 @@ def mkTracedRoutesResource[F[_]: Trace]: Resource[F, HttpRoutes[F]] =
   ???
 
 // Note that liftR also requires Defer[F]
-def mkRoutesResource[F[_]: Defer](ep: EntryPoint[F])(
-  implicit ev: Bracket[F, Throwable]
+def mkRoutesResource[F[_]](ep: EntryPoint[F])(
+  implicit ev: MonadCancel[F, Throwable]
 ): Resource[F, HttpRoutes[F]] =
   ep.liftR(mkTracedRoutesResource)
 ```
@@ -81,7 +88,7 @@ Usage is straightforward.
 import natchez.http4s.NatchezMiddleware
 
 def mkRoutes2[F[_]](ep: EntryPoint[F])(
-  implicit ev: Bracket[F, Throwable]
+  implicit ev: MonadCancel[F, Throwable]
 ): HttpRoutes[F] =
   ep.liftT(NatchezMiddleware.server(mkTracedRoutes)) // type arguments are inferred as above
 ```

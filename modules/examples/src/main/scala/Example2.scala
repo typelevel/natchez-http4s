@@ -13,19 +13,22 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
 import org.http4s.server.middleware.Logger
 import scala.io.StdIn
+import com.comcast.ip4s.Host
+import com.comcast.ip4s.Port
 
 object Http4sExampleStreamed extends IOApp with Common {
 
-  def stream[F[_]: Concurrent: Timer: ContextShift]: Stream[F, Nothing] = {
+  def stream[F[_]: Async]: Stream[F, Nothing] = {
     for {
-      ep <- Stream.resource(entryPoint[F])
-      finalRoutes = ep.liftT(NatchezMiddleware.server(routes))
+      ep          <- Stream.resource(entryPoint[F])
+      finalRoutes  = ep.liftT(NatchezMiddleware.server(routes))
       finalHttpApp = Logger.httpRoutes(true, true)(finalRoutes).orNotFound
-
-      exitCode <- Stream.resource(
+      host        <- Stream.eval(Host.fromString("0.0.0.0").liftTo[F](new Throwable("invalid host")))
+      port        <- Stream.eval(Port.fromInt(8080).liftTo[F](new Throwable("invalid port")))
+      exitCode    <- Stream.resource(
         EmberServerBuilder.default[F]
-          .withHost("0.0.0.0")
-          .withPort(8080)
+          .withHost(host)
+          .withPort(port)
           .withHttpApp(finalHttpApp)
           .build >>
         Resource.eval(Sync[F].delay(StdIn.readLine("Server is running... Press ENTER key to stop")))

@@ -6,6 +6,8 @@ package example
 
 
 import cats.effect._
+import cats.syntax.all._
+import com.comcast.ip4s.Port
 import natchez.http4s.implicits._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Server
@@ -32,11 +34,12 @@ import natchez.http4s.NatchezMiddleware
 object Http4sExample extends IOApp with Common {
 
   // Our main app resource
-  def server[F[_]: Concurrent: Timer: ContextShift]: Resource[F, Server] =
+  def server[F[_]: Async]: Resource[F, Server] =
     for {
       ep <- entryPoint[F]
       ap  = ep.liftT(NatchezMiddleware.server(routes)).orNotFound // liftT discharges the Trace constraint
-      sv <- EmberServerBuilder.default[F].withPort(8080).withHttpApp(ap).build
+      p  <- Resource.eval(Port.fromInt(8080).liftTo[F](new Throwable("invalid port")))
+      sv <- EmberServerBuilder.default[F].withPort(p).withHttpApp(ap).build
     } yield sv
 
   // Done!

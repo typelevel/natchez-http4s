@@ -5,7 +5,7 @@
 package natchez.http4s
 
 import cats.data.{ Kleisli, OptionT }
-import cats.effect.Bracket
+import cats.effect.MonadCancel
 import cats.implicits._
 import org.http4s.HttpRoutes
 import natchez.Trace
@@ -22,7 +22,7 @@ object NatchezMiddleware {
 
   @deprecated("Use NatchezMiddleware.server(routes)", "0.0.3")
   def apply[F[_]: Trace](routes: HttpRoutes[F])(
-    implicit ev: Bracket[F, Throwable]
+    implicit ev: MonadCancel[F, Throwable]
   ): HttpRoutes[F] =
     server(routes)
 
@@ -40,7 +40,7 @@ object NatchezMiddleware {
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
    */
   def server[F[_]: Trace](routes: HttpRoutes[F])(
-    implicit ev: Bracket[F, Throwable]
+    implicit ev: MonadCancel[F, Throwable]
   ): HttpRoutes[F] =
     Kleisli { req =>
 
@@ -91,7 +91,7 @@ object NatchezMiddleware {
    *
    */
   def client[F[_]: Trace](client: Client[F])(
-    implicit ev: Bracket[F, Throwable]
+    implicit ev: MonadCancel[F, Throwable]
   ): Client[F] =
     Client { req =>
       Resource {

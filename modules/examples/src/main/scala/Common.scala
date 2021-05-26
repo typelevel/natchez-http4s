@@ -25,7 +25,7 @@ trait Common {
     }
 
   // Our routes, in abstract F with a Trace constraint.
-  def routes[F[_]: Defer: Trace](
+  def routes[F[_]: Trace](
     implicit ev: MonadError[F, Throwable]
   ): HttpRoutes[F] = {
     object dsl extends Http4sDsl[F]; import dsl._ // bleh
