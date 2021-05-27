@@ -1,5 +1,5 @@
 
-val http4sVersion   = "0.23.0-M1"
+val http4sVersion   = "0.23.0-RC1"
 val natchezVersion  = "0.1.5"
 val scala212Version = "2.12.12"
 val scala213Version = "2.13.5"
