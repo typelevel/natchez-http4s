@@ -62,7 +62,7 @@ lazy val http4s = project
   .enablePlugins(AutomateHeaderPlugin)
   .settings(commonSettings)
   .settings(
-    publish / skip := scalaVersion.value.startsWith("3."),
+    publish / skip := false,
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
