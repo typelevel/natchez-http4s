@@ -1,5 +1,5 @@
 
-val http4sVersion   = "0.23.0"
+val http4sVersion   = "0.23.5"
 val natchezVersion  = "0.1.5"
 val scala212Version = "2.12.12"
 val scala213Version = "2.13.5"
@@ -69,6 +69,7 @@ lazy val http4s = project
       "org.tpolecat" %% "natchez-core"  % natchezVersion,
       "org.http4s"   %% "http4s-core"   % http4sVersion,
       "org.http4s"   %% "http4s-client" % http4sVersion,
+      "org.http4s"   %% "http4s-server" % http4sVersion,
     )
   )
 
