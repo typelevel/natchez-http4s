@@ -57,7 +57,8 @@ commonSettings
 crossScalaVersions := Nil
 publish / skip     := true
 
-lazy val http4s = project
+lazy val http4s = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
   .in(file("modules/http4s"))
   .enablePlugins(AutomateHeaderPlugin)
   .settings(commonSettings)
@@ -66,16 +67,16 @@ lazy val http4s = project
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %% "natchez-core"  % natchezVersion,
-      "org.http4s"   %% "http4s-core"   % http4sVersion,
-      "org.http4s"   %% "http4s-client" % http4sVersion,
-      "org.http4s"   %% "http4s-server" % http4sVersion,
+      "org.tpolecat" %%% "natchez-core"  % natchezVersion,
+      "org.http4s"   %%% "http4s-core"   % http4sVersion,
+      "org.http4s"   %%% "http4s-client" % http4sVersion,
+      "org.http4s"   %%% "http4s-server" % http4sVersion,
     )
   )
 
 lazy val examples = project
   .in(file("modules/examples"))
-  .dependsOn(http4s)
+  .dependsOn(http4s.jvm)
   .enablePlugins(AutomateHeaderPlugin)
   .settings(commonSettings)
   .settings(
@@ -93,7 +94,7 @@ lazy val examples = project
 
 lazy val docs = project
   .in(file("modules/docs"))
-  .dependsOn(http4s)
+  .dependsOn(http4s.jvm)
   .enablePlugins(AutomateHeaderPlugin)
   .enablePlugins(ParadoxPlugin)
   .enablePlugins(ParadoxSitePlugin)
@@ -108,10 +109,10 @@ lazy val docs = project
     paradoxTheme       := Some(builtinParadoxTheme("generic")),
     version            := version.value.takeWhile(_ != '+'), // strip off the +3-f22dca22+20191110-1520-SNAPSHOT business
     paradoxProperties ++= Map(
-      "scala-versions"            -> (http4s / crossScalaVersions).value.map(CrossVersion.partialVersion).flatten.distinct.map { case (a, b) => s"$a.$b"} .mkString("/"),
+      "scala-versions"            -> (http4s.jvm / crossScalaVersions).value.map(CrossVersion.partialVersion).flatten.distinct.map { case (a, b) => s"$a.$b"} .mkString("/"),
       "org"                       -> organization.value,
       "scala.binary.version"      -> s"2.${CrossVersion.partialVersion(scalaVersion.value).get._2}",
-      "core-dep"                  -> s"${(http4s / name).value}_2.${CrossVersion.partialVersion(scalaVersion.value).get._2}",
+      "core-dep"                  -> s"${(http4s.jvm / name).value}_2.${CrossVersion.partialVersion(scalaVersion.value).get._2}",
       "version"                   -> version.value,
       "scaladoc.natchez.base_url" -> s"https://static.javadoc.io/org.tpolecat/natchez-core_2.13/${version.value}",
     ),
