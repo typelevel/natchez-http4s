@@ -10,14 +10,12 @@ import cats.effect.{MonadCancel, Outcome}
 import cats.effect.syntax.all._
 import Outcome._
 import org.http4s.HttpRoutes
-import natchez.Trace
-import natchez.Tags
+import natchez.{Trace, TraceValue, Tags}
 import org.http4s.Response
 import org.http4s.client.Client
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import cats.effect.Resource
-import natchez.TraceValue
 
 object NatchezMiddleware {
   import syntax.kernel._
