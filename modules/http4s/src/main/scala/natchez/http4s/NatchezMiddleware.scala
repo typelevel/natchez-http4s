@@ -5,17 +5,19 @@
 package natchez.http4s
 
 import cats.data.{ Kleisli, OptionT }
-import cats.effect.MonadCancel
-import cats.implicits._
+import cats.syntax.all._
+import cats.effect.{MonadCancel, Outcome}
+import cats.effect.syntax.all._
+import Outcome._
 import org.http4s.HttpRoutes
 import natchez.Trace
 import natchez.Tags
-import scala.util.control.NonFatal
 import org.http4s.Response
 import org.http4s.client.Client
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import cats.effect.Resource
+import natchez.TraceValue
 
 object NatchezMiddleware {
   import syntax.kernel._
@@ -38,6 +40,7 @@ object NatchezMiddleware {
    *
    * - "error.message"    -> Exception message
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
+   * - "cancelled" -> true // only present in case of cancellation
    */
   def server[F[_]: Trace](routes: HttpRoutes[F])(
     implicit ev: MonadCancel[F, Throwable]
@@ -71,15 +74,17 @@ object NatchezMiddleware {
           }
         )
 
-      OptionT {
-        routes(req).onError {
-          case NonFatal(e)   => OptionT.liftF(addRequestFields *> addErrorFields(e))
-        } .value.flatMap {
-          case Some(handler) => addRequestFields *> addResponseFields(handler).as(handler.some)
-          case None          => Option.empty[Response[F]].pure[F]
+      routes(req).guaranteeCase {
+        case Canceled() => OptionT.liftF(addRequestFields *> Trace[F].put(("cancelled", TraceValue.BooleanValue(true)), Tags.error(true)))
+        case Errored(e) => OptionT.liftF(addRequestFields *> addErrorFields(e))
+        case Succeeded(fa) => OptionT.liftF {
+          fa.value.flatMap {
+            case Some(resp) => addRequestFields *> addResponseFields(resp)
+            case None => MonadCancel[F].unit
+          }
         }
       }
-    }
+   }
 
   /**
    * A middleware that adds the current span's kernel to outgoing requests, performs requests in
