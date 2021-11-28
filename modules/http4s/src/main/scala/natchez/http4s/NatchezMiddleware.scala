@@ -38,7 +38,7 @@ object NatchezMiddleware {
    *
    * - "error.message"    -> Exception message
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
-   * - "cancelled" -> true // only present in case of cancellation
+   * - "cancelled"        -> true // only present in case of cancellation
    */
   def server[F[_]: Trace](routes: HttpRoutes[F])(
     implicit ev: MonadCancel[F, Throwable]
