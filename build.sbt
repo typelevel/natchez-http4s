@@ -3,7 +3,7 @@ val http4sVersion   = "0.23.7"
 val natchezVersion  = "0.1.5"
 val scala212Version = "2.12.12"
 val scala213Version = "2.13.5"
-val scala30Version  = "3.0.0"
+val scala3Version  = "3.1.0"
 val slf4jVersion    = "1.7.30"
 
 // Global Settings
@@ -29,7 +29,7 @@ lazy val commonSettings = Seq(
 
   // Compilation
   scalaVersion       := scala213Version,
-  crossScalaVersions := Seq(scala212Version, scala213Version, scala30Version),
+  crossScalaVersions := Seq(scala212Version, scala213Version, scala3Version),
   Compile / console / scalacOptions --= Seq("-Xfatal-warnings", "-Ywarn-unused:imports"),
   Compile / doc     / scalacOptions --= Seq("-Xfatal-warnings"),
   Compile / doc     / scalacOptions ++= Seq(
