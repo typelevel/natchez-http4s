@@ -25,7 +25,7 @@ See below, then check out the `examples/` module in the repo for a working examp
 
 ## Tracing HttpRoutes
 
-Here is the basic pattern.
+Here is the basic pattern for HTTP applications **without WebSockets**. For the WebSocket variation see below.
 
 - Construct `HttpRoutes` in abstract `F` with a `Trace` constraint.
 - Lift it into our `EntryPoint`'s `F`, which has _no_ `Trace` constraint.
@@ -101,7 +101,6 @@ def mkRoutes2[F[_]](ep: EntryPoint[F])(
   ep.liftT(NatchezMiddleware.server(mkTracedRoutes)) // type arguments are inferred as above
 ```
 
-
 ## Client Middleware
 
 `NatchezMiddleware.client(<client>)` adds a span called `http4s-client-request` around outgoing requests,
@@ -112,6 +111,55 @@ with the following fields.
 | `client.http.method`      | String     | `"GET"`, `"PUT"`, etc. |
 | `client.http.url`         | String     | request URI            |
 | `client.http.status_code` | String (!) | `"200"`, `"403"`, etc. |
+
+## Tracing HttpRoutes with WebSockets
+
+The basic pattern for HTTP applications with WebSockets is analogous to the HTTP-only case above, but instead of `HttpRoutes` we are lifting functions `WebSocketBuilder2 => HttpRoutes`, which is one `map` away from what your pass to your server builder's `withHttpWebSocketApp` method.
+
+- Construct a `WebSocketBuilder2 => HttpRoutes` in abstract `F` with a `Trace` constraint.
+- Lift it into our `EntryPoint`'s `F`, which has _no_ `Trace` constraint.
+
+```scala mdoc:reset
+// Nothing new here
+import cats.effect.MonadCancel
+import natchez.{ EntryPoint, Trace }
+import org.http4s.HttpRoutes
+import org.http4s.server.websocket.WebSocketBuilder2
+
+// This import provides `wsLiftT`, used below.
+import natchez.http4s.implicits._
+
+// Our routes constructor is parametric in its effect, which has (at least) a
+// `Trace` constraint. This means all our handlers will be in the same F and
+// will have tracing available.
+def mkTracedRoutes[F[_]: Trace]: WebSocketBuilder2[F] => HttpRoutes[F] =
+  ???
+
+// Given an EntryPoint in F, with (at least) `MonadCancel[F, Throwable]` but
+// WITHOUT a Trace constraint, we can lift `mkTracedRoutes` into F.
+def mkRoutes[F[_]](ep: EntryPoint[F])(
+  implicit ev: MonadCancel[F, Throwable]
+): WebSocketBuilder2[F] => HttpRoutes[F] =
+  ep.wsLiftT(mkTracedRoutes)
+```
+
+And analogously with `wsLiftR` for the `Resource` case:
+
+```scala mdoc
+import cats.Defer
+import cats.effect.Resource
+
+def mkTracedRoutesResource[F[_]: Trace]: Resource[F, WebSocketBuilder2[F] => HttpRoutes[F]] =
+  ???
+
+// Note that liftR also requires Defer[F]
+def mkRoutesResource[F[_]](ep: EntryPoint[F])(
+  implicit ev: MonadCancel[F, Throwable]
+): Resource[F, WebSocketBuilder2[F] => HttpRoutes[F]] =
+  ep.wsLiftR(mkTracedRoutesResource)
+```
+
+As with the HTTP-only case above, the trick here is that `wsLiftT/R` will infer `F` as `Kleisli` and you won't normally need to mention it in your code.
 
 ## Limitations
 
