@@ -15,6 +15,14 @@ Below are the available version series (see [releases](https://github.com/tpolec
 
 See below, then check out the `examples/` module in the repo for a working example with a real tracing back-end.
 
+## Import
+
+@@dependency[sbt,Maven,Gradle] {
+  group="$org$"
+  artifact="$core-dep$"
+  version="$version$"
+}
+
 ## Tracing HttpRoutes
 
 Here is the basic pattern for HTTP applications **without WebSockets**. For the WebSocket variation see below.
