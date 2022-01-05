@@ -105,7 +105,7 @@ object NatchezMiddleware {
                       "client.http.uri"    -> req.uri.toString(),
                       "client.http.method" -> req.method.toString
                     )
-            reqʹ = req.putHeaders(knl.toHttp4sHeaders.headers)
+            reqʹ = req.withHeaders(knl.toHttp4sHeaders ++ req.headers) // prioritize request headers over kernel ones
             rsrc <- client.run(reqʹ).allocated
             _    <- Trace[F].put("client.http.status_code" -> rsrc._1.status.code.toString())
           } yield rsrc

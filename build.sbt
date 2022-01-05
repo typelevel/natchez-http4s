@@ -3,8 +3,10 @@ val http4sVersion   = "0.23.7"
 val natchezVersion  = "0.1.6"
 val scala212Version = "2.12.12"
 val scala213Version = "2.13.5"
-val scala3Version  = "3.1.0"
+val scala3Version   = "3.1.0"
 val slf4jVersion    = "1.7.30"
+val munitVersion    = "0.7.29"
+val munitCEVersion  = "1.0.7"
 
 // Global Settings
 lazy val commonSettings = Seq(
@@ -26,6 +28,14 @@ lazy val commonSettings = Seq(
        |""".stripMargin
     )
   ),
+
+  // Testing
+  libraryDependencies ++= Seq(
+    "org.scalameta" %%% "munit"               % munitVersion   % Test,
+    "org.typelevel" %%% "munit-cats-effect-3" % munitCEVersion % Test,
+    "org.http4s"    %%% "http4s-dsl"          % http4sVersion  % Test,
+  ),
+  testFrameworks += new TestFramework("munit.Framework"),
 
   // Compilation
   scalaVersion       := scala213Version,
