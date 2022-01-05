@@ -8,6 +8,8 @@ val slf4jVersion    = "1.7.30"
 val munitVersion    = "0.7.29"
 val munitCEVersion  = "1.0.7"
 
+ThisBuild / sonatypeCredentialHost := "http://s01.oss.sonatype.org"
+
 // Global Settings
 lazy val commonSettings = Seq(
 
