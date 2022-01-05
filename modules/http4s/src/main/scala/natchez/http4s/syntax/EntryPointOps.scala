@@ -18,33 +18,10 @@ import org.http4s.server.websocket.WebSocketBuilder2
 import org.typelevel.ci.CIString
 
 /**
- * @define liftT
- *         Given an entry point and HTTP Routes in Kleisli[F, Span[F], *] return routes in F. A new span
- *         is created with the URI path as the name, either as a continuation of the incoming trace, if
- *         any, or as a new root.
- *
- * @define liftR
- *         Lift an `HttpRoutes`-yielding resource that consumes `Span`s into the bare effect. We do this
- *         by ignoring any tracing that happens during allocation and freeing of the `HttpRoutes`
- *         resource. The reasoning is that such a resource typically lives for the lifetime of the
- *         application and it's of little use to keep a span open that long.
- *
- * @define wsLiftT
- *         Given an entry point and a function from `WebSocketBuilder2` to HTTP Routes in
- *         Kleisli[F, Span[F], *] return a function from `WebSocketBuilder2` to routes in F. A new span
- *         is created with the URI path as the name, either as a continuation of the incoming trace, if
- *         any, or as a new root.
- *
- * @define wsLiftR
- *         Lift a `WebSocketBuilder2 => HttpRoutes`-yielding resource that consumes `Span`s into the bare
- *         effect. We do this by ignoring any tracing that happens during allocation and freeing of the
- *         `HttpRoutes` resource. The reasoning is that such a resource typically lives for the lifetime
- *         of the application and it's of little use to keep a span open that long.
- *
- * @define headersInfo
+ * @define excludedHeaders
  *         All headers except security (Authorization, Cookie, Set-Cookie)
  *         and payload (Content-Length, ContentType, Content-Range, Trailer, Transfer-Encoding)
- *         are passed to Kernel.
+ *         are passed to Kernel by default.
  *
  * @define isKernelHeader should an HTTP header be passed to Kernel or not
  */
@@ -53,23 +30,17 @@ trait EntryPointOps[F[_]] { outer =>
   def self: EntryPoint[F]
 
   /**
-   * $liftT
+   * Given an entry point and HTTP Routes in Kleisli[F, Span[F], *] return routes in F. A new span
+   * is created with the URI path as the name, either as a continuation of the incoming trace, if
+   * any, or as a new root.
    *
-   * @note $headersInfo
-   */
-  def liftT(routes: HttpRoutes[Kleisli[F, Span[F], *]])(
-    implicit ev: MonadCancel[F, Throwable]
-  ): HttpRoutes[F] =
-    liftT(routes, name => !EntryPointOps.ExcludedHeaders.contains(name))
-
-  /**
-   * $liftT
+   * @note $excludedHeaders
    *
    * @param isKernelHeader $isKernelHeader
    */
   def liftT(
     routes: HttpRoutes[Kleisli[F, Span[F], *]],
-    isKernelHeader: CIString => Boolean
+    isKernelHeader: CIString => Boolean = name => !EntryPointOps.ExcludedHeaders.contains(name)
   )(implicit ev: MonadCancel[F, Throwable]): HttpRoutes[F] =
     Kleisli { req =>
       val kernelHeaders = req.headers.headers
@@ -88,65 +59,50 @@ trait EntryPointOps[F[_]] { outer =>
     }
 
   /**
-   * $liftR
+   * Lift an `HttpRoutes`-yielding resource that consumes `Span`s into the bare effect. We do this
+   * by ignoring any tracing that happens during allocation and freeing of the `HttpRoutes`
+   * resource. The reasoning is that such a resource typically lives for the lifetime of the
+   * application and it's of little use to keep a span open that long.
    *
-   * @note $headersInfo
-   */
-  def liftR(routes: Resource[Kleisli[F, Span[F], *], HttpRoutes[Kleisli[F, Span[F], *]]])(
-    implicit ev: MonadCancel[F, Throwable]
-  ): Resource[F, HttpRoutes[F]] =
-    routes.map(liftT).mapK(lower)
-
-  /**
-   * $liftR
+   * @note $excludedHeaders
    *
    * @param isKernelHeader $isKernelHeader
    */
   def liftR(
     routes: Resource[Kleisli[F, Span[F], *], HttpRoutes[Kleisli[F, Span[F], *]]],
-    isKernelHeader: CIString => Boolean
+    isKernelHeader: CIString => Boolean = name => !EntryPointOps.ExcludedHeaders.contains(name)
   )(implicit ev: MonadCancel[F, Throwable]): Resource[F, HttpRoutes[F]] =
     routes.map(liftT(_, isKernelHeader)).mapK(lower)
 
   /**
-   * $wsLiftT
+   * Given an entry point and a function from `WebSocketBuilder2` to HTTP Routes in
+   * Kleisli[F, Span[F], *] return a function from `WebSocketBuilder2` to routes in F. A new span
+   * is created with the URI path as the name, either as a continuation of the incoming trace, if
+   * any, or as a new root.
    *
-   * @note $headersInfo
-   */
-  def wsLiftT(
-    routes: WebSocketBuilder2[Kleisli[F, Span[F], *]] => HttpRoutes[Kleisli[F, Span[F], *]]
-  )(implicit ev: MonadCancel[F, Throwable]): WebSocketBuilder2[F] => HttpRoutes[F] = wsb =>
-    liftT(routes(wsb.imapK(lift)(lower)))
-
-  /**
-   * $wsLiftT
+   * @note $excludedHeaders
    *
    * @param isKernelHeader $isKernelHeader
    */
   def wsLiftT(
     routes: WebSocketBuilder2[Kleisli[F, Span[F], *]] => HttpRoutes[Kleisli[F, Span[F], *]],
-    isKernelHeader: CIString => Boolean
+    isKernelHeader: CIString => Boolean = name => !EntryPointOps.ExcludedHeaders.contains(name)
   )(implicit ev: MonadCancel[F, Throwable]): WebSocketBuilder2[F] => HttpRoutes[F] = wsb =>
     liftT(routes(wsb.imapK(lift)(lower)), isKernelHeader)
 
   /**
-   * $wsLiftR
+   * Lift a `WebSocketBuilder2 => HttpRoutes`-yielding resource that consumes `Span`s into the bare
+   * effect. We do this by ignoring any tracing that happens during allocation and freeing of the
+   * `HttpRoutes` resource. The reasoning is that such a resource typically lives for the lifetime
+   * of the application and it's of little use to keep a span open that long.
    *
-   * @note $headersInfo
-   */
-  def wsLiftR(
-    routes: Resource[Kleisli[F, Span[F], *], WebSocketBuilder2[Kleisli[F, Span[F], *]] => HttpRoutes[Kleisli[F, Span[F], *]]]
-  )(implicit ev: MonadCancel[F, Throwable]): Resource[F, WebSocketBuilder2[F] => HttpRoutes[F]] =
-    routes.map(wsLiftT).mapK(lower)
-
-  /**
-   * $wsLiftR
+   * @note $excludedHeaders
    *
    * @param isKernelHeader $isKernelHeader
    */
   def wsLiftR(
     routes: Resource[Kleisli[F, Span[F], *], WebSocketBuilder2[Kleisli[F, Span[F], *]] => HttpRoutes[Kleisli[F, Span[F], *]]],
-    isKernelHeader: CIString => Boolean
+    isKernelHeader: CIString => Boolean = name => !EntryPointOps.ExcludedHeaders.contains(name)
   )(implicit ev: MonadCancel[F, Throwable]): Resource[F, WebSocketBuilder2[F] => HttpRoutes[F]] =
     routes.map(wsLiftT(_, isKernelHeader)).mapK(lower)
 
