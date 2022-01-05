@@ -76,16 +76,16 @@ object InMemory {
 
   sealed trait NatchezCommand
   object NatchezCommand {
-    final case class AskKernel(kernel: Kernel)                       extends NatchezCommand
-    final case object AskSpanId                                      extends NatchezCommand
-    final case object AskTraceId                                     extends NatchezCommand
-    final case object AskTraceUri                                    extends NatchezCommand
-    final case class Put(fields: List[(String, natchez.TraceValue)]) extends NatchezCommand
-    final case class CreateSpan(name: String)                        extends NatchezCommand
-    final case class ReleaseSpan(name: String)                       extends NatchezCommand
+    case class AskKernel(kernel: Kernel)                       extends NatchezCommand
+    case object AskSpanId                                      extends NatchezCommand
+    case object AskTraceId                                     extends NatchezCommand
+    case object AskTraceUri                                    extends NatchezCommand
+    case class Put(fields: List[(String, natchez.TraceValue)]) extends NatchezCommand
+    case class CreateSpan(name: String)                        extends NatchezCommand
+    case class ReleaseSpan(name: String)                       extends NatchezCommand
     // entry point
-    final case class CreateRootSpan(name: String, kernel: Kernel)    extends NatchezCommand
-    final case class ReleaseRootSpan(name: String)                   extends NatchezCommand
+    case class CreateRootSpan(name: String, kernel: Kernel)    extends NatchezCommand
+    case class ReleaseRootSpan(name: String)                   extends NatchezCommand
   }
 
 }
