@@ -115,7 +115,7 @@ class NatchezMiddlewareSuite extends CatsEffectSuite {
     for {
       ref      <- IO.ref(Chain.empty[(Lineage, NatchezCommand)])
       ep       <- IO.pure(new InMemory.EntryPoint(ref))
-      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]], _ => false))
+      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]]))
       _        <- routes.orNotFound.run(request)
       history  <- ref.get
     } yield assertEquals(history.toList, expectedHistory)
