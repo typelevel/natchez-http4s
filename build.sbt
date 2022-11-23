@@ -9,6 +9,7 @@ val slf4jVersion    = "2.0.4"
 val munitCEVersion  = "2.0.0-M3"
 
 ThisBuild / organization := "org.tpolecat"
+ThisBuild / tlSonatypeUseLegacyHost := false
 ThisBuild / licenses := Seq(("MIT", url("http://opensource.org/licenses/MIT")))
 ThisBuild / homepage := Some(url("https://github.com/tpolecat/natchez-http4s"))
 ThisBuild / developers := List(
