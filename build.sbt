@@ -6,8 +6,7 @@ val scala212Version = "2.12.17"
 val scala213Version = "2.13.10"
 val scala3Version   = "3.2.1"
 val slf4jVersion    = "1.7.30"
-val munitVersion    = "0.7.29"
-val munitCEVersion  = "1.0.7"
+val munitCEVersion  = "2.0.0-M3"
 
 ThisBuild / organization := "org.tpolecat"
 ThisBuild / licenses := Seq(("MIT", url("http://opensource.org/licenses/MIT")))
@@ -15,6 +14,8 @@ ThisBuild / homepage := Some(url("https://github.com/tpolecat/natchez-http4s"))
 ThisBuild / developers := List(
   Developer("tpolecat", "Rob Norris", "rob_norris@mac.com", url("http://www.tpolecat.org"))
 )
+
+ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
 
 lazy val commonSettings = Seq(
   headerMappings := headerMappings.value + (HeaderFileType.scala -> HeaderCommentStyle.cppStyleLineComment),
@@ -27,9 +28,8 @@ lazy val commonSettings = Seq(
   ),
 
   libraryDependencies ++= Seq(
-    "org.scalameta" %%% "munit"               % munitVersion   % Test,
-    "org.typelevel" %%% "munit-cats-effect-3" % munitCEVersion % Test,
-    "org.http4s"    %%% "http4s-dsl"          % http4sVersion  % Test,
+    "org.typelevel" %%% "munit-cats-effect" % munitCEVersion % Test,
+    "org.http4s"    %%% "http4s-dsl"        % http4sVersion  % Test,
   )
 )
 
@@ -42,7 +42,7 @@ lazy val root = tlCrossRootProject.aggregate(
   docs
 )
 
-lazy val http4s = crossProject(JSPlatform, JVMPlatform)
+lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .in(file("modules/http4s"))
   .enablePlugins(AutomateHeaderPlugin)
