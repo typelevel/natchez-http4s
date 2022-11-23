@@ -5,7 +5,7 @@ val natchezVersion  = "0.2.2"
 val scala212Version = "2.12.17"
 val scala213Version = "2.13.10"
 val scala3Version   = "3.2.1"
-val slf4jVersion    = "1.7.30"
+val slf4jVersion    = "2.0.4"
 val munitCEVersion  = "2.0.0-M3"
 
 ThisBuild / organization := "org.tpolecat"
