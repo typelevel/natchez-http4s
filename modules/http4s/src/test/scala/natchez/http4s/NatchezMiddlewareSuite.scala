@@ -99,8 +99,8 @@ class NatchezMiddlewareSuite extends CatsEffectSuite {
 
       List(
         (Lineage.Root,                                          NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel)),
-        (Lineage.Root,                                          NatchezCommand.CreateSpan("call-proxy")),
-        (Lineage.Root / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request")),
+        (Lineage.Root,                                          NatchezCommand.CreateSpan("call-proxy", None)),
+        (Lineage.Root / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request", None)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),

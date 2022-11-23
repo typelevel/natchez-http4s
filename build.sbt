@@ -1,26 +1,24 @@
+ThisBuild / tlBaseVersion := "0.4"
 
-val http4sVersion   = "0.23.7"
-val natchezVersion  = "0.1.6"
-val scala212Version = "2.12.12"
-val scala213Version = "2.13.5"
-val scala3Version   = "3.1.0"
-val slf4jVersion    = "1.7.30"
-val munitVersion    = "0.7.29"
-val munitCEVersion  = "1.0.7"
+val http4sVersion   = "0.23.16"
+val natchezVersion  = "0.2.2"
+val scala212Version = "2.12.17"
+val scala213Version = "2.13.10"
+val scala3Version   = "3.2.1"
+val slf4jVersion    = "2.0.4"
+val munitCEVersion  = "2.0.0-M3"
 
-// Global Settings
+ThisBuild / organization := "org.tpolecat"
+ThisBuild / tlSonatypeUseLegacyHost := false
+ThisBuild / licenses := Seq(("MIT", url("http://opensource.org/licenses/MIT")))
+ThisBuild / homepage := Some(url("https://github.com/tpolecat/natchez-http4s"))
+ThisBuild / developers := List(
+  Developer("tpolecat", "Rob Norris", "rob_norris@mac.com", url("http://www.tpolecat.org"))
+)
+
+ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
+
 lazy val commonSettings = Seq(
-
-  // Publishing
-  sonatypeCredentialHost := "s01.oss.sonatype.org",
-  organization := "org.tpolecat",
-  licenses    ++= Seq(("MIT", url("http://opensource.org/licenses/MIT"))),
-  homepage     := Some(url("https://github.com/tpolecat/natchez-http4s")),
-  developers   := List(
-    Developer("tpolecat", "Rob Norris", "rob_norris@mac.com", url("http://www.tpolecat.org"))
-  ),
-
-  // Headers
   headerMappings := headerMappings.value + (HeaderFileType.scala -> HeaderCommentStyle.cppStyleLineComment),
   headerLicense  := Some(HeaderLicense.Custom(
     """|Copyright (c) 2021 by Rob Norris
@@ -30,51 +28,27 @@ lazy val commonSettings = Seq(
     )
   ),
 
-  // Testing
   libraryDependencies ++= Seq(
-    "org.scalameta" %%% "munit"               % munitVersion   % Test,
-    "org.typelevel" %%% "munit-cats-effect-3" % munitCEVersion % Test,
-    "org.http4s"    %%% "http4s-dsl"          % http4sVersion  % Test,
-  ),
-  testFrameworks += new TestFramework("munit.Framework"),
-
-  // Compilation
-  scalaVersion       := scala213Version,
-  crossScalaVersions := Seq(scala212Version, scala213Version, scala3Version),
-  Compile / console / scalacOptions --= Seq("-Xfatal-warnings", "-Ywarn-unused:imports"),
-  Compile / doc     / scalacOptions --= Seq("-Xfatal-warnings"),
-  Compile / doc     / scalacOptions ++= Seq(
-    "-groups",
-    "-sourcepath", (LocalRootProject / baseDirectory).value.getAbsolutePath,
-    "-doc-source-url", "https://github.com/tpolecat/natchez-http4s/blob/v" + version.value + "€{FILE_PATH}.scala"
-  ),
-  libraryDependencies ++= Seq(
-    compilerPlugin("org.typelevel" %% "kind-projector" % "0.13.0" cross CrossVersion.full),
-  ).filterNot(_ => scalaVersion.value.startsWith("3.")),
-
-  // dottydoc really doesn't work at all right now
-  Compile / doc / sources := {
-    val old = (Compile / doc / sources).value
-    if (scalaVersion.value.startsWith("3."))
-      Seq()
-    else
-      old
-  },
-
+    "org.typelevel" %%% "munit-cats-effect" % munitCEVersion % Test,
+    "org.http4s"    %%% "http4s-dsl"        % http4sVersion  % Test,
+  )
 )
 
-// root project
-commonSettings
-crossScalaVersions := Nil
-publish / skip     := true
+ThisBuild / scalaVersion := scala213Version
+ThisBuild / crossScalaVersions := Seq(scala212Version, scala213Version, scala3Version)
 
-lazy val http4s = crossProject(JSPlatform, JVMPlatform)
+lazy val root = tlCrossRootProject.aggregate(
+  http4s,
+  examples,
+  docs
+)
+
+lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .in(file("modules/http4s"))
   .enablePlugins(AutomateHeaderPlugin)
   .settings(commonSettings)
   .settings(
-    publish / skip := false,
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(

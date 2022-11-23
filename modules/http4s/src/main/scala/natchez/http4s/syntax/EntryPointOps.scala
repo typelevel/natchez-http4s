@@ -8,12 +8,9 @@ import cats.~>
 import cats.data.{ Kleisli, OptionT }
 import cats.data.Kleisli.applyK
 import cats.effect.MonadCancel
-import cats.implicits._
 import natchez.{ EntryPoint, Kernel, Span }
 import org.http4s.HttpRoutes
 import cats.effect.Resource
-import natchez.TraceValue
-import cats.Monad
 import org.http4s.server.websocket.WebSocketBuilder2
 import org.typelevel.ci.CIString
 
@@ -72,7 +69,7 @@ trait EntryPointOps[F[_]] { outer =>
     routes: Resource[Kleisli[F, Span[F], *], HttpRoutes[Kleisli[F, Span[F], *]]],
     isKernelHeader: CIString => Boolean = name => !EntryPointOps.ExcludedHeaders.contains(name)
   )(implicit ev: MonadCancel[F, Throwable]): Resource[F, HttpRoutes[F]] =
-    routes.map(liftT(_, isKernelHeader)).mapK(lower)
+    routes.map(liftT(_, isKernelHeader)).mapK(Span.dropTracing)
 
   /**
    * Given an entry point and a function from `WebSocketBuilder2` to HTTP Routes in
@@ -88,7 +85,7 @@ trait EntryPointOps[F[_]] { outer =>
     routes: WebSocketBuilder2[Kleisli[F, Span[F], *]] => HttpRoutes[Kleisli[F, Span[F], *]],
     isKernelHeader: CIString => Boolean = name => !EntryPointOps.ExcludedHeaders.contains(name)
   )(implicit ev: MonadCancel[F, Throwable]): WebSocketBuilder2[F] => HttpRoutes[F] = wsb =>
-    liftT(routes(wsb.imapK(lift)(lower)), isKernelHeader)
+    liftT(routes(wsb.imapK(lift)(Span.dropTracing)), isKernelHeader)
 
   /**
    * Lift a `WebSocketBuilder2 => HttpRoutes`-yielding resource that consumes `Span`s into the bare
@@ -104,27 +101,10 @@ trait EntryPointOps[F[_]] { outer =>
     routes: Resource[Kleisli[F, Span[F], *], WebSocketBuilder2[Kleisli[F, Span[F], *]] => HttpRoutes[Kleisli[F, Span[F], *]]],
     isKernelHeader: CIString => Boolean = name => !EntryPointOps.ExcludedHeaders.contains(name)
   )(implicit ev: MonadCancel[F, Throwable]): Resource[F, WebSocketBuilder2[F] => HttpRoutes[F]] =
-    routes.map(wsLiftT(_, isKernelHeader)).mapK(lower)
+    routes.map(wsLiftT(_, isKernelHeader)).mapK(Span.dropTracing)
 
   private val lift: F ~> Kleisli[F, Span[F], *] =
     Kleisli.liftK
-
-  private def lower(implicit ev: Monad[F]): Kleisli[F, Span[F], *] ~> F =
-    new (Kleisli[F, Span[F], *] ~> F) {
-      def apply[A](fa: Kleisli[F, Span[F], A]) =
-        fa.run(dummySpan)
-    }
-
-  private def dummySpan(implicit ev: Monad[F]): Span[F] =
-    new Span[F] {
-      val kernel = Kernel(Map.empty).pure[F]
-      def put(fields: (String, TraceValue)*) = Monad[F].unit
-      def span(name: String) = Monad[Resource[F, *]].pure(this)
-      def traceId = Monad[F].pure(None)
-      def traceUri = Monad[F].pure(None)
-      def spanId = Monad[F].pure(None)
-    }
-
 }
 
 object EntryPointOps {
