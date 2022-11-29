@@ -62,7 +62,7 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 lazy val examples = project
   .in(file("modules/examples"))
   .dependsOn(http4s.jvm)
-  .enablePlugins(AutomateHeaderPlugin)
+  .enablePlugins(AutomateHeaderPlugin, NoPublishPlugin)
   .settings(commonSettings)
   .settings(
     publish / skip       := true,
