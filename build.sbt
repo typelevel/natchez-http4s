@@ -62,7 +62,7 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 lazy val examples = project
   .in(file("modules/examples"))
   .dependsOn(http4s.jvm)
-  .enablePlugins(AutomateHeaderPlugin)
+  .enablePlugins(AutomateHeaderPlugin, NoPublishPlugin)
   .settings(commonSettings)
   .settings(
     publish / skip       := true,
@@ -80,11 +80,7 @@ lazy val examples = project
 lazy val docs = project
   .in(file("modules/docs"))
   .dependsOn(http4s.jvm)
-  .enablePlugins(AutomateHeaderPlugin)
-  .enablePlugins(ParadoxPlugin)
-  .enablePlugins(ParadoxSitePlugin)
-  .enablePlugins(GhpagesPlugin)
-  .enablePlugins(MdocPlugin)
+  .enablePlugins(AutomateHeaderPlugin, ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin, MdocPlugin, NoPublishPlugin)
   .settings(commonSettings)
   .settings(
     scalacOptions      := Nil,
