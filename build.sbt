@@ -80,11 +80,7 @@ lazy val examples = project
 lazy val docs = project
   .in(file("modules/docs"))
   .dependsOn(http4s.jvm)
-  .enablePlugins(AutomateHeaderPlugin)
-  .enablePlugins(ParadoxPlugin)
-  .enablePlugins(ParadoxSitePlugin)
-  .enablePlugins(GhpagesPlugin)
-  .enablePlugins(MdocPlugin)
+  .enablePlugins(AutomateHeaderPlugin, ParadoxPlugin, ParadoxSitePlugin, GhpagesPlugin, MdocPlugin, NoPublishPlugin)
   .settings(commonSettings)
   .settings(
     scalacOptions      := Nil,
