@@ -1,4 +1,4 @@
-ThisBuild / tlBaseVersion := "0.4"
+ThisBuild / tlBaseVersion := "0.5"
 
 val http4sVersion   = "0.23.16"
 val natchezVersion  = "0.3.0-M2"
