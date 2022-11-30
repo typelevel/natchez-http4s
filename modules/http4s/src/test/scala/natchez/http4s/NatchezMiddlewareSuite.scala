@@ -7,7 +7,6 @@ package natchez.http4s
 import cats.Monad
 import cats.data.{ Chain, Kleisli }
 import cats.effect.{ IO, MonadCancelThrow, Resource }
-import munit.CatsEffectSuite
 import natchez.{Kernel, Trace}
 import natchez.TraceValue.StringValue
 import natchez.http4s.syntax.entrypoint._
@@ -18,8 +17,7 @@ import org.http4s.dsl.request._
 import org.http4s.syntax.literals._
 import org.typelevel.ci._
 
-class NatchezMiddlewareSuite extends CatsEffectSuite {
-  import InMemory.{Lineage, NatchezCommand}
+class NatchezMiddlewareSuite extends InMemorySuite {
 
   private val CustomHeaderName = ci"X-Custom-Header"
   private val CorrelationIdName = ci"X-Correlation-Id"
@@ -113,11 +111,10 @@ class NatchezMiddlewareSuite extends CatsEffectSuite {
     }
 
     for {
-      ref      <- IO.ref(Chain.empty[(Lineage, NatchezCommand)])
-      ep       <- IO.pure(new InMemory.EntryPoint(ref))
+      ep       <- InMemory.EntryPoint.create
       routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]]))
       _        <- routes.orNotFound.run(request)
-      history  <- ref.get
+      history  <- ep.ref.get
     } yield assertEquals(history.toList, expectedHistory)
   }
 
