@@ -74,7 +74,7 @@ class NatchezMiddlewareSuite extends InMemorySuite {
 
     val expectedHistory = {
       val requestKernel = Kernel(
-        Map("X-Custom-Header" -> "external", "X-Correlation-Id" -> "id-123")
+        Map(CustomHeaderName -> "external", CorrelationIdName -> "id-123")
       )
 
       val clientRequestTags = List(
