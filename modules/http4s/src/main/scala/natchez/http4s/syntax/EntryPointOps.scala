@@ -42,7 +42,7 @@ trait EntryPointOps[F[_]] { outer =>
     Kleisli { req =>
       val kernelHeaders = req.headers.headers
         .collect {
-          case header if isKernelHeader(header.name) => header.name.toString -> header.value
+          case header if isKernelHeader(header.name) => header.name -> header.value
         }
         .toMap
 
