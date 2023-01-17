@@ -7,7 +7,7 @@ package natchez.http4s
 import cats.Monad
 import cats.data.{ Chain, Kleisli }
 import cats.effect.{ IO, MonadCancelThrow, Resource }
-import natchez.{Kernel, Trace}
+import natchez.{Kernel, Span, Trace}
 import natchez.TraceValue.StringValue
 import natchez.http4s.syntax.entrypoint._
 import org.http4s._
@@ -96,9 +96,9 @@ class NatchezMiddlewareSuite extends InMemorySuite {
       )
 
       List(
-        (Lineage.Root,                                          NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel)),
-        (Lineage.Root,                                          NatchezCommand.CreateSpan("call-proxy", None)),
-        (Lineage.Root / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request", None)),
+        (Lineage.Root,                                          NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
+        (Lineage.Root,                                          NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
+        (Lineage.Root / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),
