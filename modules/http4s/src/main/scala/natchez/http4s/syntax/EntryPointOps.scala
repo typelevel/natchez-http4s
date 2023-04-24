@@ -23,6 +23,8 @@ import org.typelevel.ci.CIString
  * @define isKernelHeader should an HTTP header be passed to Kernel or not
  *
  * @define spanName compute the span name from the request
+ *
+ * @define spanOptions options used in span creation
  */
 trait EntryPointOps[F[_]] { outer =>
 
