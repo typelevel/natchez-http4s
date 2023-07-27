@@ -97,7 +97,7 @@ object NatchezMiddleware {
     implicit ev: MonadCancel[F, Throwable]
   ): Client[F] =
     Client { req =>
-      Resource {
+      Resource.applyFull {poll =>
         Trace[F].span("http4s-client-request") {
           for {
             knl  <- Trace[F].kernel
@@ -106,7 +106,7 @@ object NatchezMiddleware {
                       "client.http.method" -> req.method.toString
                     )
             reqʹ = req.withHeaders(knl.toHttp4sHeaders ++ req.headers) // prioritize request headers over kernel ones
-            rsrc <- client.run(reqʹ).allocated
+            rsrc <- poll(client.run(reqʹ).allocatedCase)
             _    <- Trace[F].put("client.http.status_code" -> rsrc._1.status.code.toString())
           } yield rsrc
         }
