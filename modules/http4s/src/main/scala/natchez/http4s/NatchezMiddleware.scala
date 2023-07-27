@@ -10,13 +10,27 @@ import cats.effect.{MonadCancel, Outcome}
 import cats.effect.syntax.all._
 import Outcome._
 import org.http4s.HttpRoutes
-import natchez.{Trace, TraceValue, Tags}
+import org.typelevel.ci.CIString
+import natchez.{Kernel, Span, Trace, TraceValue, Tags}
+import org.http4s.Request
 import org.http4s.Response
 import org.http4s.client.Client
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import cats.effect.Resource
 
+/**
+ * @define excludedHeaders
+ *         All headers except security (Authorization, Cookie, Set-Cookie)
+ *         and payload (Content-Length, ContentType, Content-Range, Trailer, Transfer-Encoding)
+ *         are passed to Kernel by default.
+ *
+ * @define isKernelHeader should an HTTP header be passed to Kernel or not
+ *
+ * @define spanName compute the span name from the request
+ *
+ * @define modifySpanOptions modify default span creation options
+ */
 object NatchezMiddleware {
   import syntax.kernel._
 
@@ -27,7 +41,8 @@ object NatchezMiddleware {
     server(routes)
 
   /**
-   * A middleware that adds the following standard fields to the current span:
+   * A middleware that creates a per request span. 
+   * It also adds following standard fields to newly created span:
    *
    * - "http.method"      -> "GET", "PUT", etc.
    * - "http.url"         -> request URI (not URL)
@@ -39,8 +54,20 @@ object NatchezMiddleware {
    * - "error.message"    -> Exception message
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
    * - "cancelled"        -> true // only present in case of cancellation
+   *
+   * @note $excludedHeaders
+   *
+   * @param isKernelHeader $isKernelHeader
+   * @param spanName $spanName
+   * @param modifySpanOptions $modifySpanOptions
    */
-  def server[F[_]: Trace](routes: HttpRoutes[F])(
+
+  def server[F[_]: Trace](
+    routes: HttpRoutes[F],
+    isKernelHeader: CIString => Boolean = name => !ExcludedHeaders.contains(name),
+    spanName: Request[F] => String = (req: Request[F]) => req.uri.path.toString,
+    modifySpanOptions: Span.Options => Span.Options = identity
+  )(
     implicit ev: MonadCancel[F, Throwable]
   ): HttpRoutes[F] =
     Kleisli { req =>
@@ -71,17 +98,25 @@ object NatchezMiddleware {
             new String(baos.toByteArray, "UTF-8")
           }
         )
-
-      routes(req).guaranteeCase {
-        case Canceled() => OptionT.liftF(addRequestFields *> Trace[F].put(("cancelled", TraceValue.BooleanValue(true)), Tags.error(true)))
-        case Errored(e) => OptionT.liftF(addRequestFields *> addErrorFields(e))
-        case Succeeded(fa) => OptionT.liftF {
-          fa.value.flatMap {
-            case Some(resp) => addRequestFields *> addResponseFields(resp)
-            case None => MonadCancel[F].unit
+      val kernelHeaders = req.headers.headers
+        .collect {
+          case header if isKernelHeader(header.name) => header.name -> header.value
+        }
+        .toMap
+      val kernel = Kernel(kernelHeaders)
+      OptionT(
+        Trace[F].span(spanName(req), modifySpanOptions(Span.Options.Defaults.withParentKernel(kernel).withSpanKind(Span.SpanKind.Server))) {
+          addRequestFields >> routes(req).value.guaranteeCase {
+            case Canceled() => Trace[F].put(("cancelled", TraceValue.BooleanValue(true)), Tags.error(true))
+            case Errored(e) => addErrorFields(e)
+            case Succeeded(fa) =>
+              fa.flatMap {
+                case Some(resp) => addResponseFields(resp)
+                case None => ev.unit
+              }
           }
         }
-      }
+      )
    }
 
   /**
@@ -112,5 +147,26 @@ object NatchezMiddleware {
         }
       }
     }
+
+  val ExcludedHeaders: Set[CIString] = {
+    import org.http4s.headers._
+    import org.typelevel.ci._
+
+    val payload = Set(
+      `Content-Length`.name,
+      ci"Content-Type",
+      `Content-Range`.name,
+      ci"Trailer",
+      `Transfer-Encoding`.name,
+    )
+
+    val security = Set(
+      Authorization.name,
+      Cookie.name,
+      `Set-Cookie`.name,
+    )
+
+    payload ++ security
+  }
 
 }
