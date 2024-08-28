@@ -6,12 +6,12 @@ package natchez.http4s
 
 import cats.data.{ Kleisli, OptionT }
 import cats.syntax.all._
-import cats.effect.{MonadCancel, Outcome}
+import cats.effect.{MonadCancel, MonadCancelThrow, Outcome}
 import cats.effect.syntax.all._
 import Outcome._
 import org.http4s.HttpRoutes
 import natchez.{Trace, TraceValue, Tags}
-import org.http4s.Response
+import org.http4s.{Response, Request}
 import org.http4s.client.Client
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -93,9 +93,42 @@ object NatchezMiddleware {
    * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
    *
    */
-  def client[F[_]: Trace](client: Client[F])(
-    implicit ev: MonadCancel[F, Throwable]
-  ): Client[F] =
+  def client[F[_] : Trace : MonadCancelThrow](client: Client[F]): Client[F] =
+    NatchezMiddleware.client(client, _ => Seq.empty)
+
+  /**
+   * A middleware that adds the current span's kernel to outgoing requests, performs requests in
+   * a span called `http4s-client-request`, and adds the following fields to that span.
+   *
+   * - "client.http.method"      -> "GET", "PUT", etc.
+   * - "client.http.uri"         -> request URI
+   * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
+   *
+   * @param client the `Client[F]` to be enhanced
+   * @param additionalAttributes additional attributes to be added to the span
+   * @tparam F An effect with instances of `Trace[F]` and `MonadCancelThrow[F]`
+   * @return the enhanced `Client[F]`
+   */
+  def client[F[_] : Trace : MonadCancelThrow](client: Client[F],
+                                              additionalAttributes: (String, TraceValue) *): Client[F] =
+    NatchezMiddleware.client(client, (_: Request[F]) => additionalAttributes)
+
+  /**
+   * A middleware that adds the current span's kernel to outgoing requests, performs requests in
+   * a span called `http4s-client-request`, and adds the following fields to that span.
+   *
+   * - "client.http.method"      -> "GET", "PUT", etc.
+   * - "client.http.uri"         -> request URI
+   * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
+   *
+   * @param client the `Client[F]` to be enhanced
+   * @param additionalAttributes a function that takes the `Request[F]` and returns any additional attributes to be added to the span
+   * @tparam F An effect with instances of `Trace[F]` and `MonadCancelThrow[F]`
+   * @return the enhanced `Client[F]`
+   */
+  def client[F[_] : Trace : MonadCancelThrow](client: Client[F],
+                                              additionalAttributes: Request[F] => Seq[(String, TraceValue)],
+                                             ): Client[F] =
     Client { req =>
       Resource.applyFull {poll =>
         Trace[F].span("http4s-client-request") {
@@ -105,6 +138,7 @@ object NatchezMiddleware {
                       "client.http.uri"    -> req.uri.toString(),
                       "client.http.method" -> req.method.toString
                     )
+            _ <- Trace[F].put(additionalAttributes(req): _*)
             reqʹ = req.withHeaders(knl.toHttp4sHeaders ++ req.headers) // prioritize request headers over kernel ones
             rsrc <- poll(client.run(reqʹ).allocatedCase)
             _    <- Trace[F].put("client.http.status_code" -> rsrc._1.status.code.toString())
