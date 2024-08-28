@@ -5,9 +5,9 @@
 package natchez.http4s
 
 import cats.Monad
-import cats.data.{ Chain, Kleisli }
-import cats.effect.{ IO, MonadCancelThrow, Resource }
-import natchez.{Kernel, Span, Trace}
+import cats.data.{Chain, Kleisli}
+import cats.effect.{IO, MonadCancelThrow, Resource}
+import natchez.{InMemory, Kernel, Span, Trace}
 import natchez.TraceValue.StringValue
 import natchez.http4s.syntax.entrypoint._
 import org.http4s._
@@ -96,22 +96,22 @@ class NatchezMiddlewareSuite extends InMemorySuite {
       )
 
       List(
-        (Lineage.Root,                                          NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
-        (Lineage.Root,                                          NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
-        (Lineage.Root / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults)),
-        (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
-        (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
-        (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),
-        (Lineage.Root / "call-proxy",                           NatchezCommand.ReleaseSpan("http4s-client-request")),
-        (Lineage.Root,                                          NatchezCommand.ReleaseSpan("call-proxy")),
-        (Lineage.Root,                                          NatchezCommand.Put(requestTags)),
-        (Lineage.Root,                                          NatchezCommand.Put(responseTags)),
-        (Lineage.Root,                                          NatchezCommand.ReleaseRootSpan("/hello/some-name"))
+        (Lineage.Root,                                                              NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
+        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
+        (Lineage.Root("/hello/some-name") / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults)),
+        (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
+        (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
+        (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),
+        (Lineage.Root("/hello/some-name") / "call-proxy",                           NatchezCommand.ReleaseSpan("http4s-client-request")),
+        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.ReleaseSpan("call-proxy")),
+        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.Put(requestTags)),
+        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.Put(responseTags)),
+        (Lineage.Root,                                                              NatchezCommand.ReleaseRootSpan("/hello/some-name"))
       )
     }
 
     for {
-      ep       <- InMemory.EntryPoint.create
+      ep       <- InMemory.EntryPoint.create[IO]
       routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]]))
       _        <- routes.orNotFound.run(request)
       history  <- ep.ref.get
