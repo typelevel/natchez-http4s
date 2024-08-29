@@ -94,7 +94,7 @@ object NatchezMiddleware {
    *
    */
   def client[F[_] : Trace : MonadCancelThrow](client: Client[F]): Client[F] =
-    NatchezMiddleware.client(client, _ => Seq.empty)
+    NatchezMiddleware.client(client, _ => Seq.empty[(String, TraceValue)].pure[F])
 
   /**
    * A middleware that adds the current span's kernel to outgoing requests, performs requests in
@@ -111,7 +111,7 @@ object NatchezMiddleware {
    */
   def clientWithAttributes[F[_] : Trace : MonadCancelThrow](client: Client[F])
                                                            (additionalAttributes: (String, TraceValue)*): Client[F] =
-    NatchezMiddleware.client(client, (_: Request[F]) => additionalAttributes)
+    NatchezMiddleware.client(client, (_: Request[F]) => additionalAttributes.pure[F])
 
   /**
    * A middleware that adds the current span's kernel to outgoing requests, performs requests in
@@ -122,12 +122,12 @@ object NatchezMiddleware {
    * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
    *
    * @param client the `Client[F]` to be enhanced
-   * @param additionalAttributes a function that takes the `Request[F]` and returns any additional attributes to be added to the span
+   * @param additionalAttributesF a function that takes the `Request[F]` and returns any additional attributes to be added to the span
    * @tparam F An effect with instances of `Trace[F]` and `MonadCancelThrow[F]`
    * @return the enhanced `Client[F]`
    */
   def client[F[_] : Trace : MonadCancelThrow](client: Client[F],
-                                              additionalAttributes: Request[F] => Seq[(String, TraceValue)],
+                                              additionalAttributesF: Request[F] => F[Seq[(String, TraceValue)]],
                                              ): Client[F] =
     Client { req =>
       Resource.applyFull {poll =>
@@ -138,7 +138,8 @@ object NatchezMiddleware {
                       "client.http.uri"    -> req.uri.toString(),
                       "client.http.method" -> req.method.toString
                     )
-            _ <- Trace[F].put(additionalAttributes(req): _*)
+            additionalAttributes <- additionalAttributesF(req)
+            _ <- Trace[F].put(additionalAttributes: _*)
             reqʹ = req.withHeaders(knl.toHttp4sHeaders ++ req.headers) // prioritize request headers over kernel ones
             rsrc <- poll(client.run(reqʹ).allocatedCase)
             _    <- Trace[F].put("client.http.status_code" -> rsrc._1.status.code.toString())
