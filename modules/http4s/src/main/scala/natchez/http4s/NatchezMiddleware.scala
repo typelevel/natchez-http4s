@@ -59,7 +59,6 @@ object NatchezMiddleware {
       def addErrorFields(e: Throwable): F[Unit] =
         Trace[F].put(
           Tags.error(true),
-          "error.message"    -> e.getMessage(),
           "error.stacktrace" -> {
             val baos = new ByteArrayOutputStream
             val fs   = new AnsiFilterStream(baos)
@@ -70,7 +69,7 @@ object NatchezMiddleware {
             baos.close
             new String(baos.toByteArray, "UTF-8")
           }
-        )
+        ) >> Option(e.getMessage).traverse_(m => Trace[F].put("error.message" -> m))
 
       routes(req).guaranteeCase {
         case Canceled() => OptionT.liftF(addRequestFields *> Trace[F].put(("cancelled", TraceValue.BooleanValue(true)), Tags.error(true)))
