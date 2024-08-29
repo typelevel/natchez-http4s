@@ -12,13 +12,15 @@ import fs2.Stream
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.implicits._
 import org.http4s.server.middleware.Logger
+
 import scala.io.StdIn
 import com.comcast.ip4s.Host
 import com.comcast.ip4s.Port
+import fs2.io.net.Network
 
 object Http4sExampleStreamed extends IOApp with Common {
 
-  def stream[F[_]: Async]: Stream[F, Nothing] = {
+  def stream[F[_]: Async : Network]: Stream[F, Nothing] = {
     for {
       ep          <- Stream.resource(entryPoint[F])
       finalRoutes  = ep.liftT(NatchezMiddleware.server(routes))

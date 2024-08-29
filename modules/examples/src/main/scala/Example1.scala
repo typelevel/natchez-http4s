@@ -8,6 +8,7 @@ package example
 import cats.effect._
 import cats.syntax.all._
 import com.comcast.ip4s.Port
+import fs2.io.net.Network
 import natchez.http4s.implicits._
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Server
@@ -34,7 +35,7 @@ import natchez.http4s.NatchezMiddleware
 object Http4sExample extends IOApp with Common {
 
   // Our main app resource
-  def server[F[_]: Async]: Resource[F, Server] =
+  def server[F[_]: Async : Network]: Resource[F, Server] =
     for {
       ep <- entryPoint[F]
       ap  = ep.liftT(NatchezMiddleware.server(routes)).orNotFound // liftT discharges the Trace constraint
