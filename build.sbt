@@ -1,10 +1,10 @@
 ThisBuild / tlBaseVersion := "0.6"
 
 val http4sVersion   = "0.23.17"
-val natchezVersion  = "0.3.0"
+val natchezVersion  = "0.3.5"
 val scala212Version = "2.12.17"
 val scala213Version = "2.13.10"
-val scala3Version   = "3.2.1"
+val scala3Version   = "3.3.3"
 val slf4jVersion    = "2.0.4"
 val munitCEVersion  = "2.0.0-M3"
 
@@ -52,10 +52,11 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %%% "natchez-core"  % natchezVersion,
-      "org.http4s"   %%% "http4s-core"   % http4sVersion,
-      "org.http4s"   %%% "http4s-client" % http4sVersion,
-      "org.http4s"   %%% "http4s-server" % http4sVersion,
+      "org.tpolecat" %%% "natchez-core"    % natchezVersion,
+      "org.http4s"   %%% "http4s-core"     % http4sVersion,
+      "org.http4s"   %%% "http4s-client"   % http4sVersion,
+      "org.http4s"   %%% "http4s-server"   % http4sVersion,
+      "org.tpolecat" %%% "natchez-testkit" % natchezVersion % Test,
     )
   )
 
@@ -102,4 +103,3 @@ lazy val docs = project
     makeSite := makeSite.dependsOn(mdoc.toTask("")).value,
     mdocExtraArguments := Seq("--no-link-hygiene"), // paradox handles this
   )
-
