@@ -4,18 +4,20 @@
 
 package natchez.http4s
 
-import cats.data.{ Kleisli, OptionT }
+import cats.data.{Kleisli, OptionT}
 import cats.syntax.all._
-import cats.effect.{MonadCancel, MonadCancelThrow, Outcome}
+import cats.effect.{MonadCancel, MonadCancelThrow, Outcome, Resource}
 import cats.effect.syntax.all._
 import Outcome._
-import org.http4s.HttpRoutes
-import natchez.{Trace, TraceValue, Tags}
-import org.http4s.{Response, Request}
+import natchez.{Tags, Trace, TraceValue}
+import natchez.Span.Options.Defaults
+import natchez.Span.SpanKind
 import org.http4s.client.Client
+import org.http4s.HttpRoutes
+import org.http4s.{Request, Response}
+
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
-import cats.effect.Resource
 
 object NatchezMiddleware {
   import syntax.kernel._
@@ -131,7 +133,7 @@ object NatchezMiddleware {
                                              ): Client[F] =
     Client { req =>
       Resource.applyFull {poll =>
-        Trace[F].span("http4s-client-request") {
+        Trace[F].span("http4s-client-request", Defaults.withSpanKind(SpanKind.Client)) {
           for {
             knl  <- Trace[F].kernel
             _    <- Trace[F].put(

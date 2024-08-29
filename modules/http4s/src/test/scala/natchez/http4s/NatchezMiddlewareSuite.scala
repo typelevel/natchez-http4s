@@ -8,6 +8,7 @@ import cats.Monad
 import cats.data.{Chain, Kleisli}
 import cats.effect.{IO, MonadCancelThrow, Resource}
 import munit.ScalaCheckEffectSuite
+import natchez.Span.SpanKind
 import natchez.{Kernel, Span, Trace, TraceValue}
 import natchez.TraceValue.StringValue
 import natchez.http4s.syntax.entrypoint._
@@ -120,7 +121,7 @@ class NatchezMiddlewareSuite
         List(
           (Lineage.Root, NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
           (Lineage.Root, NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
-          (Lineage.Root / "call-proxy", NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults)),
+          (Lineage.Root / "call-proxy", NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults.withSpanKind(SpanKind.Client))),
           (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
           (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
           (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(userSpecifiedTags)),
