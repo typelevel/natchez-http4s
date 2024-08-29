@@ -3,7 +3,7 @@ ThisBuild / tlBaseVersion := "0.6"
 val http4sVersion           = "0.23.27"
 val natchezVersion          = "0.3.6"
 val scala212Version         = "2.12.19"
-val scala213Version         = "2.13.10"
+val scala213Version         = "2.13.14"
 val scala3Version           = "3.3.3"
 val slf4jVersion            = "2.0.16"
 val munitCEVersion          = "2.0.0"
@@ -19,6 +19,7 @@ ThisBuild / developers := List(
 
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
 
+ThisBuild / startYear := Some(2021)
 lazy val commonSettings = Seq(
   headerMappings := headerMappings.value + (HeaderFileType.scala -> HeaderCommentStyle.cppStyleLineComment),
   headerLicense  := Some(HeaderLicense.Custom(
@@ -28,7 +29,6 @@ lazy val commonSettings = Seq(
        |""".stripMargin
     )
   ),
-
   libraryDependencies ++= Seq(
     "org.typelevel" %%% "munit-cats-effect"       % munitCEVersion          % Test,
     "org.http4s"    %%% "http4s-dsl"              % http4sVersion           % Test,
@@ -48,7 +48,6 @@ lazy val root = tlCrossRootProject.aggregate(
 lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .in(file("modules/http4s"))
-  .enablePlugins(AutomateHeaderPlugin)
   .settings(commonSettings)
   .settings(
     name        := "natchez-http4s",
@@ -65,13 +64,12 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 lazy val examples = project
   .in(file("modules/examples"))
   .dependsOn(http4s.jvm)
-  .enablePlugins(AutomateHeaderPlugin, NoPublishPlugin)
+  .enablePlugins(NoPublishPlugin)
   .settings(commonSettings)
   .settings(
-    publish / skip       := true,
     name                 := "natchez-http4s-examples",
     description          := "Example programs for Natchez-Http4s.",
-    scalacOptions        -= "-Xfatal-warnings",
+    tlFatalWarnings      := false,
     libraryDependencies ++= Seq(
       "org.tpolecat" %% "natchez-jaeger"      % natchezVersion,
       "org.http4s"   %% "http4s-dsl"          % http4sVersion,
