@@ -1,12 +1,13 @@
 ThisBuild / tlBaseVersion := "0.6"
 
-val http4sVersion   = "0.23.17"
-val natchezVersion  = "0.3.5"
-val scala212Version = "2.12.17"
-val scala213Version = "2.13.10"
-val scala3Version   = "3.3.3"
-val slf4jVersion    = "2.0.4"
-val munitCEVersion  = "2.0.0-M3"
+val http4sVersion           = "0.23.17"
+val natchezVersion          = "0.3.5"
+val scala212Version         = "2.12.17"
+val scala213Version         = "2.13.10"
+val scala3Version           = "3.3.3"
+val slf4jVersion            = "2.0.4"
+val munitCEVersion          = "2.0.0-M3"
+val scalacheckEffectVersion = "2.0.0-M2"
 
 ThisBuild / organization := "org.tpolecat"
 ThisBuild / tlSonatypeUseLegacyHost := false
@@ -29,8 +30,9 @@ lazy val commonSettings = Seq(
   ),
 
   libraryDependencies ++= Seq(
-    "org.typelevel" %%% "munit-cats-effect" % munitCEVersion % Test,
-    "org.http4s"    %%% "http4s-dsl"        % http4sVersion  % Test,
+    "org.typelevel" %%% "munit-cats-effect"       % munitCEVersion          % Test,
+    "org.http4s"    %%% "http4s-dsl"              % http4sVersion           % Test,
+    "org.typelevel" %%% "scalacheck-effect-munit" % scalacheckEffectVersion % Test,
   )
 )
 

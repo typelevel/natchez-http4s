@@ -7,7 +7,9 @@ package natchez.http4s
 import cats.Monad
 import cats.data.{Chain, Kleisli}
 import cats.effect.{IO, MonadCancelThrow, Resource}
-import natchez.{InMemory, Kernel, Span, Trace}
+import munit.ScalaCheckEffectSuite
+import natchez.Span.SpanKind
+import natchez.{InMemory, Kernel, Span, Trace, TraceValue}
 import natchez.TraceValue.StringValue
 import natchez.http4s.syntax.entrypoint._
 import org.http4s._
@@ -15,12 +17,32 @@ import org.http4s.headers._
 import org.http4s.client.Client
 import org.http4s.dsl.request._
 import org.http4s.syntax.literals._
+import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.Arbitrary.arbitrary
+import org.scalacheck.effect.PropF
 import org.typelevel.ci._
 
-class NatchezMiddlewareSuite extends InMemorySuite {
+class NatchezMiddlewareSuite
+  extends InMemorySuite
+    with ScalaCheckEffectSuite {
 
   private val CustomHeaderName = ci"X-Custom-Header"
   private val CorrelationIdName = ci"X-Correlation-Id"
+
+  private implicit val arbTraceValue: Arbitrary[TraceValue] = Arbitrary {
+    Gen.oneOf(
+      arbitrary[String].map(TraceValue.StringValue(_)),
+      arbitrary[Boolean].map(TraceValue.BooleanValue(_)),
+      arbitrary[Number].map(TraceValue.NumberValue(_)),
+    )
+  }
+
+  private implicit val arbAttribute: Arbitrary[(String, TraceValue)] = Arbitrary {
+    for {
+      key <- arbitrary[String]
+      value <- arbitrary[TraceValue]
+    } yield key -> value
+  }
 
   test("do not leak security and payload headers to the client request") {
     val headers = Headers(
@@ -54,7 +76,7 @@ class NatchezMiddlewareSuite extends InMemorySuite {
     for {
       ref      <- IO.ref(Chain.empty[(Lineage, NatchezCommand)])
       ep       <- IO.pure(new InMemory.EntryPoint(ref))
-      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]]))
+      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]]()))
       response <- routes.orNotFound.run(request)
     } yield {
       assertEquals(response.status.code, 200)
@@ -63,63 +85,66 @@ class NatchezMiddlewareSuite extends InMemorySuite {
   }
 
   test("generate proper tracing history") {
-    val request = Request[IO](
-      method = Method.GET,
-      uri = uri"/hello/some-name",
-      headers = Headers(
-        Header.Raw(CustomHeaderName, "external"),
-        Header.Raw(CorrelationIdName, "id-123")
-      )
-    )
-
-    val expectedHistory = {
-      val requestKernel = Kernel(
-        Map(CustomHeaderName -> "external", CorrelationIdName -> "id-123")
+    PropF.forAllF { (userSpecifiedTags: List[(String, TraceValue)]) =>
+      val request = Request[IO](
+        method = Method.GET,
+        uri = uri"/hello/some-name",
+        headers = Headers(
+          Header.Raw(CustomHeaderName, "external"),
+          Header.Raw(CorrelationIdName, "id-123")
+        )
       )
 
-      val clientRequestTags = List(
-        "client.http.uri" -> StringValue("/some-name"),
-        "client.http.method" -> StringValue("GET")
-      )
+      val expectedHistory = {
+        val requestKernel = Kernel(
+          Map(CustomHeaderName -> "external", CorrelationIdName -> "id-123")
+        )
 
-      val clientResponseTags = List(
-        "client.http.status_code" -> StringValue("200")
-      )
+        val clientRequestTags = List(
+          "client.http.uri" -> StringValue("/some-name"),
+          "client.http.method" -> StringValue("GET")
+        )
 
-      val requestTags = List(
-        "http.method" -> StringValue("GET"),
-        "http.url" -> StringValue("/hello/some-name")
-      )
+        val clientResponseTags = List(
+          "client.http.status_code" -> StringValue("200")
+        )
 
-      val responseTags = List(
-        "http.status_code" -> StringValue("200")
-      )
+        val requestTags = List(
+          "http.method" -> StringValue("GET"),
+          "http.url" -> StringValue("/hello/some-name")
+        )
 
-      List(
-        (Lineage.Root,                                                              NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
-        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
-        (Lineage.Root("/hello/some-name") / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults)),
-        (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
-        (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
-        (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),
-        (Lineage.Root("/hello/some-name") / "call-proxy",                           NatchezCommand.ReleaseSpan("http4s-client-request")),
-        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.ReleaseSpan("call-proxy")),
-        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.Put(requestTags)),
-        (Lineage.Root("/hello/some-name"),                                          NatchezCommand.Put(responseTags)),
-        (Lineage.Root,                                                              NatchezCommand.ReleaseRootSpan("/hello/some-name"))
-      )
+        val responseTags = List(
+          "http.status_code" -> StringValue("200")
+        )
+
+        List(
+          (Lineage.Root, NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
+          (Lineage.Root("/hello/some-name"), NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
+          (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults.withSpanKind(SpanKind.Client))),
+          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
+          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
+          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(userSpecifiedTags)),
+          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),
+          (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.ReleaseSpan("http4s-client-request")),
+          (Lineage.Root("/hello/some-name"), NatchezCommand.ReleaseSpan("call-proxy")),
+          (Lineage.Root("/hello/some-name"), NatchezCommand.Put(requestTags)),
+          (Lineage.Root("/hello/some-name"), NatchezCommand.Put(responseTags)),
+          (Lineage.Root, NatchezCommand.ReleaseRootSpan("/hello/some-name"))
+        )
+      }
+
+      for {
+        ep <- InMemory.EntryPoint.create[IO]
+        routes <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](userSpecifiedTags: _*)))
+        _ <- routes.orNotFound.run(request)
+        history <- ep.ref.get
+      } yield assertEquals(history.toList, expectedHistory)
     }
-
-    for {
-      ep       <- InMemory.EntryPoint.create[IO]
-      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]]))
-      _        <- routes.orNotFound.run(request)
-      history  <- ep.ref.get
-    } yield assertEquals(history.toList, expectedHistory)
   }
 
-  private def httpRoutes[F[_]: MonadCancelThrow: Trace]: HttpRoutes[F] = {
-    val client = NatchezMiddleware.client(echoHeadersClient[F])
+  private def httpRoutes[F[_]: MonadCancelThrow: Trace](additionalAttributes: (String, TraceValue)*): HttpRoutes[F] = {
+    val client = NatchezMiddleware.clientWithAttributes(echoHeadersClient[F])(additionalAttributes: _*)
     val server = NatchezMiddleware.server(proxyRoutes(client))
     server
   }
