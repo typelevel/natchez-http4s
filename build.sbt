@@ -6,7 +6,7 @@ val scala212Version         = "2.12.19"
 val scala213Version         = "2.13.10"
 val scala3Version           = "3.3.3"
 val slf4jVersion            = "2.0.16"
-val munitCEVersion          = "2.0.0-M3"
+val munitCEVersion          = "2.0.0"
 val scalacheckEffectVersion = "2.0.0-M2"
 
 ThisBuild / organization := "org.tpolecat"
