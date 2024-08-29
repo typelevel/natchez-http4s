@@ -82,6 +82,10 @@ class NatchezMiddlewareSuite extends InMemorySuite {
         "client.http.method" -> StringValue("GET")
       )
 
+      val userSpecifiedTags = List(
+        "test" -> StringValue("test"),
+      )
+
       val clientResponseTags = List(
         "client.http.status_code" -> StringValue("200")
       )
@@ -101,6 +105,7 @@ class NatchezMiddlewareSuite extends InMemorySuite {
         (Lineage.Root / "call-proxy",                           NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
+        (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(userSpecifiedTags)),
         (Lineage.Root / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),
         (Lineage.Root / "call-proxy",                           NatchezCommand.ReleaseSpan("http4s-client-request")),
         (Lineage.Root,                                          NatchezCommand.ReleaseSpan("call-proxy")),
@@ -119,7 +124,7 @@ class NatchezMiddlewareSuite extends InMemorySuite {
   }
 
   private def httpRoutes[F[_]: MonadCancelThrow: Trace]: HttpRoutes[F] = {
-    val client = NatchezMiddleware.client(echoHeadersClient[F])
+    val client = NatchezMiddleware.clientWithAttributes(echoHeadersClient[F])("test" -> "test")
     val server = NatchezMiddleware.server(proxyRoutes(client))
     server
   }

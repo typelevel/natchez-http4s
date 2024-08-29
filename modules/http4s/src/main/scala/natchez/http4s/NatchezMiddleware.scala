@@ -109,8 +109,8 @@ object NatchezMiddleware {
    * @tparam F An effect with instances of `Trace[F]` and `MonadCancelThrow[F]`
    * @return the enhanced `Client[F]`
    */
-  def client[F[_] : Trace : MonadCancelThrow](client: Client[F],
-                                              additionalAttributes: (String, TraceValue) *): Client[F] =
+  def clientWithAttributes[F[_] : Trace : MonadCancelThrow](client: Client[F])
+                                                           (additionalAttributes: (String, TraceValue)*): Client[F] =
     NatchezMiddleware.client(client, (_: Request[F]) => additionalAttributes)
 
   /**
