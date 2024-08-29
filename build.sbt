@@ -28,7 +28,7 @@ lazy val commonSettings = Seq(
        |""".stripMargin
     )
   ),
-
+  startYear := Some(2021),
   libraryDependencies ++= Seq(
     "org.typelevel" %%% "munit-cats-effect"       % munitCEVersion          % Test,
     "org.http4s"    %%% "http4s-dsl"              % http4sVersion           % Test,
