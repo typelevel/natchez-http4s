@@ -8,6 +8,7 @@ val scala3Version           = "3.3.4"
 val slf4jVersion            = "2.0.16"
 val munitCEVersion          = "2.0.0"
 val scalacheckEffectVersion = "2.0.0-M2"
+val catsMtlVersion          = "1.4.0"
 
 ThisBuild / organization := "org.tpolecat"
 ThisBuild / sonatypeCredentialHost := xerial.sbt.Sonatype.sonatypeLegacy
@@ -47,6 +48,7 @@ ThisBuild / crossScalaVersions := Seq(scala212Version, scala213Version, scala3Ve
 
 lazy val root = tlCrossRootProject.aggregate(
   http4s,
+  mtl,
   examples,
   docs
 )
@@ -66,6 +68,23 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "org.tpolecat" %%% "natchez-testkit" % natchezVersion % Test,
     )
   )
+
+lazy val mtl = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .in(file("modules/mtl"))
+  .settings(commonSettings)
+  .settings(
+    name        := "natchez-http4s",
+    description := "Natchez middleware for http4s with cats-mtl Local[F, Span[F]] semantics.",
+    libraryDependencies ++= Seq(
+      "org.tpolecat"  %%% "natchez-mtl"     % natchezVersion,
+      "org.http4s"    %%% "http4s-core"     % http4sVersion,
+      "org.http4s"    %%% "http4s-server"   % http4sVersion,
+      "org.typelevel" %%% "cats-mtl"        % catsMtlVersion,
+      "org.tpolecat"  %%% "natchez-testkit" % natchezVersion % Test,
+    )
+  )
+  .dependsOn(http4s % "compile->compile;test->test") // TODO limit this dependency so this doesn't pull in the http4s-client
 
 lazy val examples = project
   .in(file("modules/examples"))
