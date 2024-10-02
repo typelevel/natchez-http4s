@@ -9,7 +9,7 @@ import cats.syntax.all._
 import cats.effect.{MonadCancel, MonadCancelThrow, Outcome, Resource}
 import cats.effect.syntax.all._
 import Outcome._
-import natchez.{Tags, Trace, TraceValue}
+import natchez.{Span, Tags, Trace, TraceValue}
 import natchez.Span.Options.Defaults
 import natchez.Span.SpanKind
 import org.http4s.client.Client
@@ -123,6 +123,24 @@ object NatchezMiddleware {
    * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
    *
    * @param client the `Client[F]` to be enhanced
+   * @param additionalAttributes additional attributes to be added to the span
+   * @tparam F An effect with instances of `Trace[F]` and `MonadCancelThrow[F]`
+   * @return the enhanced `Client[F]`
+   */
+  def clientWithAttributes[F[_] : Trace : MonadCancelThrow](client: Client[F],
+                                                            spanOptions: Span.Options)
+                                                           (additionalAttributes: (String, TraceValue)*): Client[F] =
+    NatchezMiddleware.client(client, spanOptions, (_: Request[F]) => additionalAttributes.pure[F])
+
+  /**
+   * A middleware that adds the current span's kernel to outgoing requests, performs requests in
+   * a span called `http4s-client-request`, and adds the following fields to that span.
+   *
+   * - "client.http.method"      -> "GET", "PUT", etc.
+   * - "client.http.uri"         -> request URI
+   * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
+   *
+   * @param client the `Client[F]` to be enhanced
    * @param additionalAttributesF a function that takes the `Request[F]` and returns any additional attributes to be added to the span
    * @tparam F An effect with instances of `Trace[F]` and `MonadCancelThrow[F]`
    * @return the enhanced `Client[F]`
@@ -130,9 +148,28 @@ object NatchezMiddleware {
   def client[F[_] : Trace : MonadCancelThrow](client: Client[F],
                                               additionalAttributesF: Request[F] => F[Seq[(String, TraceValue)]],
                                              ): Client[F] =
+    NatchezMiddleware.client(client, Defaults.withSpanKind(SpanKind.Client), additionalAttributesF)
+
+  /**
+   * A middleware that adds the current span's kernel to outgoing requests, performs requests in
+   * a span called `http4s-client-request`, and adds the following fields to that span.
+   *
+   * - "client.http.method"      -> "GET", "PUT", etc.
+   * - "client.http.uri"         -> request URI
+   * - "client.http.status_code" -> "200", "403", etc. // why is this a string?
+   *
+   * @param client the `Client[F]` to be enhanced
+   * @param additionalAttributesF a function that takes the `Request[F]` and returns any additional attributes to be added to the span
+   * @tparam F An effect with instances of `Trace[F]` and `MonadCancelThrow[F]`
+   * @return the enhanced `Client[F]`
+   */
+  def client[F[_] : Trace : MonadCancelThrow](client: Client[F],
+                                              spanOptions: Span.Options,
+                                              additionalAttributesF: Request[F] => F[Seq[(String, TraceValue)]],
+                                             ): Client[F] =
     Client { req =>
       Resource.applyFull {poll =>
-        Trace[F].span("http4s-client-request", Defaults.withSpanKind(SpanKind.Client)) {
+        Trace[F].span("http4s-client-request", spanOptions) {
           for {
             knl  <- Trace[F].kernel
             _    <- Trace[F].put(

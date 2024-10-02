@@ -8,19 +8,20 @@ import cats.Monad
 import cats.data.{Chain, Kleisli}
 import cats.effect.{IO, MonadCancelThrow, Resource}
 import munit.ScalaCheckEffectSuite
+import natchez.Span.Options.SpanCreationPolicy
 import natchez.Span.SpanKind
-import natchez.{InMemory, Kernel, Span, Trace, TraceValue}
 import natchez.TraceValue.StringValue
-import natchez.http4s.syntax.entrypoint._
-import org.http4s._
-import org.http4s.headers._
+import natchez.http4s.syntax.entrypoint.*
+import natchez.*
+import org.http4s.*
 import org.http4s.client.Client
-import org.http4s.dsl.request._
-import org.http4s.syntax.literals._
-import org.scalacheck.{Arbitrary, Gen}
+import org.http4s.dsl.request.*
+import org.http4s.headers.*
+import org.http4s.syntax.literals.*
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.effect.PropF
-import org.typelevel.ci._
+import org.scalacheck.{Arbitrary, Gen}
+import org.typelevel.ci.*
 
 class NatchezMiddlewareSuite
   extends InMemorySuite
@@ -42,6 +43,47 @@ class NatchezMiddlewareSuite
       key <- arbitrary[String]
       value <- arbitrary[TraceValue]
     } yield key -> value
+  }
+
+  private implicit val arbCIString: Arbitrary[CIString] = Arbitrary {
+    Gen.alphaLowerStr.map(CIString(_))
+  }
+
+  private implicit val arbKernel: Arbitrary[Kernel] = Arbitrary {
+    arbitrary[Map[CIString, String]].map(Kernel(_))
+  }
+
+  private implicit val arbSpanCreationPolicy: Arbitrary[SpanCreationPolicy] = Arbitrary {
+    Gen.oneOf(SpanCreationPolicy.Default, SpanCreationPolicy.Coalesce, SpanCreationPolicy.Suppress)
+  }
+
+  private implicit val arbSpanKind: Arbitrary[SpanKind] = Arbitrary {
+    Gen.oneOf(
+      SpanKind.Internal,
+      SpanKind.Client,
+      SpanKind.Server,
+      SpanKind.Producer,
+      SpanKind.Consumer,
+    )
+  }
+
+  private implicit val arbSpanOptions: Arbitrary[Span.Options] = Arbitrary {
+    for {
+      parentKernel <- arbitrary[Option[Kernel]]
+      spanCreationPolicy <- arbitrary[SpanCreationPolicy]
+      spanKind <- arbitrary[SpanKind]
+      links <- arbitrary[List[Kernel]].map(Chain.fromSeq)
+    } yield {
+      links.foldLeft {
+        parentKernel.foldLeft {
+          Span
+            .Options
+            .Defaults
+            .withSpanKind(spanKind)
+            .withSpanCreationPolicy(spanCreationPolicy)
+        }(_.withParentKernel(_))
+      }(_.withLink(_))
+    }
   }
 
   test("do not leak security and payload headers to the client request") {
@@ -76,7 +118,7 @@ class NatchezMiddlewareSuite
     for {
       ref      <- IO.ref(Chain.empty[(Lineage, NatchezCommand)])
       ep       <- IO.pure(new InMemory.EntryPoint(ref))
-      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]]()))
+      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](None)))
       response <- routes.orNotFound.run(request)
     } yield {
       assertEquals(response.status.code, 200)
@@ -85,7 +127,8 @@ class NatchezMiddlewareSuite
   }
 
   test("generate proper tracing history") {
-    PropF.forAllF { (userSpecifiedTags: List[(String, TraceValue)]) =>
+    PropF.forAllF { (userSpecifiedTags: List[(String, TraceValue)],
+                     maybeSpanOptions: Option[Span.Options]) =>
       val request = Request[IO](
         method = Method.GET,
         uri = uri"/hello/some-name",
@@ -118,10 +161,13 @@ class NatchezMiddlewareSuite
           "http.status_code" -> StringValue("200")
         )
 
+        val spanOptions = maybeSpanOptions.getOrElse(Span.Options.Defaults.withSpanKind(SpanKind.Client))
+        val kernel = maybeSpanOptions.flatMap(_.parentKernel)
+
         List(
           (Lineage.Root, NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
           (Lineage.Root("/hello/some-name"), NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
-          (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.CreateSpan("http4s-client-request", None, Span.Options.Defaults.withSpanKind(SpanKind.Client))),
+          (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.CreateSpan("http4s-client-request", kernel, spanOptions)),
           (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
           (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
           (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(userSpecifiedTags)),
@@ -136,15 +182,22 @@ class NatchezMiddlewareSuite
 
       for {
         ep <- InMemory.EntryPoint.create[IO]
-        routes <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](userSpecifiedTags: _*)))
+        routes <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](maybeSpanOptions, userSpecifiedTags *)))
         _ <- routes.orNotFound.run(request)
         history <- ep.ref.get
       } yield assertEquals(history.toList, expectedHistory)
     }
   }
 
-  private def httpRoutes[F[_]: MonadCancelThrow: Trace](additionalAttributes: (String, TraceValue)*): HttpRoutes[F] = {
-    val client = NatchezMiddleware.clientWithAttributes(echoHeadersClient[F])(additionalAttributes: _*)
+  private def httpRoutes[F[_]: MonadCancelThrow: Trace](maybeSpanOptions: Option[Span.Options],
+                                                        additionalAttributes: (String, TraceValue)*): HttpRoutes[F] = {
+    val client = maybeSpanOptions match {
+      case Some(spanOptions) =>
+        NatchezMiddleware.clientWithAttributes(echoHeadersClient[F], spanOptions)(additionalAttributes *)
+      case None =>
+        NatchezMiddleware.clientWithAttributes(echoHeadersClient[F])(additionalAttributes *)
+    }
+
     val server = NatchezMiddleware.server(proxyRoutes(client))
     server
   }
