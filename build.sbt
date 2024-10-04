@@ -16,6 +16,12 @@ ThisBuild / homepage := Some(url("https://github.com/tpolecat/natchez-http4s"))
 ThisBuild / developers := List(
   Developer("tpolecat", "Rob Norris", "rob_norris@mac.com", url("http://www.tpolecat.org"))
 )
+ThisBuild / mergifyStewardConfig := Some(
+  MergifyStewardConfig(
+    author = "typelevel-steward[bot]",
+    mergeMinors = true
+  )
+)
 
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
 
