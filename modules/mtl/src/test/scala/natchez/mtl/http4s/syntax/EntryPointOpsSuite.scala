@@ -4,6 +4,7 @@
 
 package natchez.mtl.http4s.syntax
 
+import cats.arrow.FunctionK
 import cats.effect.{IO, IOLocal, MonadCancelThrow}
 import cats.mtl.Local
 import cats.syntax.all.*
@@ -29,18 +30,19 @@ class EntryPointOpsSuite
   implicit val kernelMonoid: Monoid[Kernel] = Monoid.instance(Kernel(Map.empty), (a, b) => Kernel(a.toHeaders |+| b.toHeaders))
 
   testLift("liftRoutes uses the kernel from the request to continue or create a new trace") { implicit local: Local[IO, Span[IO]] =>
-    (ep: EntryPoint[IO]) =>
-      _.fold(ep.liftRoutes(httpRoutes[IO]))(so => ep.liftRoutes(httpRoutes[IO], spanOptions = so))
-        .orNotFound
+    _.liftRoutes(httpRoutes[IO], _).orNotFound
   }
 
   testLift("liftApp uses the kernel from the request to continue or create a new trace") { implicit local: Local[IO, Span[IO]] =>
-    (ep: EntryPoint[IO]) =>
-      _.fold(ep.liftApp(httpRoutes[IO].orNotFound))(so => ep.liftApp(httpRoutes[IO].orNotFound, spanOptions = so))
+    _.liftApp(httpRoutes[IO].orNotFound, _)
+  }
+
+  testLift("liftHttp uses the kernel from the request to continue or create a new trace") { implicit local: Local[IO, Span[IO]] =>
+    _.liftHttp(httpRoutes[IO].orNotFound, _, FunctionK.id)
   }
 
   private def testLift(options: TestOptions)
-                      (body: Local[IO, Span[IO]] => EntryPoint[IO] => Option[Span.Options] => HttpApp[IO])
+                      (body: Local[IO, Span[IO]] => (EntryPoint[IO], HttpTracingOptions[IO]) => HttpApp[IO])
                       (implicit loc: Location): Unit =
     test(options) {
       PropF.forAllNoShrinkF { (kernel: Kernel, maybeSpanOptions: Option[Span.Options]) =>
@@ -80,7 +82,7 @@ class EntryPointOpsSuite
             IOLocal(Span.noop[IO])
               .map(EntryPointOpsSuite.catsMtlEffectLocalForIO(_))
               .flatMap {
-                body(_)(ep)(maybeSpanOptions)
+                body(_)(ep, maybeSpanOptions.foldl(HttpTracingOptions[IO])(_ withSpanOptions _))
                   .run(request)
               }
               .flatMap(_ => ep.ref.get)
