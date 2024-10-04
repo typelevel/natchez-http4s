@@ -10,6 +10,7 @@ import cats.effect.*
 import cats.mtl.Local
 import cats.~>
 import natchez.Span.SpanKind.Server
+import natchez.http4s.DefaultValues.ExcludedHeaders
 import natchez.{EntryPoint, Kernel, Span}
 import org.http4s.{Http, HttpApp, HttpRoutes, Request}
 import org.typelevel.ci.CIString
@@ -30,7 +31,7 @@ trait EntryPointOps[F[_]] { outer =>
    * @return the wrapped `HttpApp[F]`
    */
   def liftApp(routes: HttpApp[F],
-              isKernelHeader: CIString => Boolean = name => !natchez.http4s.syntax.EntryPointOps.ExcludedHeaders.contains(name),
+              isKernelHeader: CIString => Boolean = name => !ExcludedHeaders.contains(name),
               spanName: Request[F] => String = (req: Request[F]) => s"${req.method} ${req.uri.path}",
               spanOptions: Span.Options = Span.Options.Defaults.withSpanKind(Server),
              )
@@ -77,7 +78,7 @@ trait EntryPointOps[F[_]] { outer =>
    * @return the wrapped `HttpRoutes[F]`
    */
   def liftRoutes(routes: HttpRoutes[F],
-                 isKernelHeader: CIString => Boolean = name => !natchez.http4s.syntax.EntryPointOps.ExcludedHeaders.contains(name),
+                 isKernelHeader: CIString => Boolean = name => !ExcludedHeaders.contains(name),
                  spanName: Request[F] => String = (req: Request[F]) => s"${req.method} ${req.uri.path}",
                  spanOptions: Span.Options = Span.Options.Defaults.withSpanKind(Server),
                 )
