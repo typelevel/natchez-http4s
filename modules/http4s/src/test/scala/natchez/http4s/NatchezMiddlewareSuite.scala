@@ -8,83 +8,21 @@ import cats.Monad
 import cats.data.{Chain, Kleisli}
 import cats.effect.{IO, MonadCancelThrow, Resource}
 import munit.ScalaCheckEffectSuite
-import natchez.Span.Options.SpanCreationPolicy
+import natchez.*
 import natchez.Span.SpanKind
 import natchez.TraceValue.StringValue
 import natchez.http4s.syntax.entrypoint.*
-import natchez.*
 import org.http4s.*
 import org.http4s.client.Client
 import org.http4s.dsl.request.*
 import org.http4s.headers.*
 import org.http4s.syntax.literals.*
-import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.effect.PropF
-import org.scalacheck.{Arbitrary, Gen}
 import org.typelevel.ci.*
 
 class NatchezMiddlewareSuite
   extends InMemorySuite
     with ScalaCheckEffectSuite {
-
-  private val CustomHeaderName = ci"X-Custom-Header"
-  private val CorrelationIdName = ci"X-Correlation-Id"
-
-  private implicit val arbTraceValue: Arbitrary[TraceValue] = Arbitrary {
-    Gen.oneOf(
-      arbitrary[String].map(TraceValue.StringValue(_)),
-      arbitrary[Boolean].map(TraceValue.BooleanValue(_)),
-      arbitrary[Number].map(TraceValue.NumberValue(_)),
-    )
-  }
-
-  private implicit val arbAttribute: Arbitrary[(String, TraceValue)] = Arbitrary {
-    for {
-      key <- arbitrary[String]
-      value <- arbitrary[TraceValue]
-    } yield key -> value
-  }
-
-  private implicit val arbCIString: Arbitrary[CIString] = Arbitrary {
-    Gen.alphaLowerStr.map(CIString(_))
-  }
-
-  private implicit val arbKernel: Arbitrary[Kernel] = Arbitrary {
-    arbitrary[Map[CIString, String]].map(Kernel(_))
-  }
-
-  private implicit val arbSpanCreationPolicy: Arbitrary[SpanCreationPolicy] = Arbitrary {
-    Gen.oneOf(SpanCreationPolicy.Default, SpanCreationPolicy.Coalesce, SpanCreationPolicy.Suppress)
-  }
-
-  private implicit val arbSpanKind: Arbitrary[SpanKind] = Arbitrary {
-    Gen.oneOf(
-      SpanKind.Internal,
-      SpanKind.Client,
-      SpanKind.Server,
-      SpanKind.Producer,
-      SpanKind.Consumer,
-    )
-  }
-
-  private implicit val arbSpanOptions: Arbitrary[Span.Options] = Arbitrary {
-    for {
-      parentKernel <- arbitrary[Option[Kernel]]
-      spanCreationPolicy <- arbitrary[SpanCreationPolicy]
-      spanKind <- arbitrary[SpanKind]
-      links <- arbitrary[List[Kernel]].map(Chain.fromSeq)
-    } yield {
-      links.foldLeft {
-        parentKernel.foldLeft {
-          Span
-            .Options
-            .Defaults
-            .withSpanKind(spanKind)
-            .withSpanCreationPolicy(spanCreationPolicy)
-        }(_.withParentKernel(_))
-      }(_.withLink(_))
-    }
-  }
 
   test("do not leak security and payload headers to the client request") {
     val headers = Headers(
