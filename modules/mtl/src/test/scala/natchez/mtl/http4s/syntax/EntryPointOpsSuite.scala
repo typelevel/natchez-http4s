@@ -8,7 +8,7 @@ import cats.arrow.FunctionK
 import cats.effect.{IO, IOLocal, MonadCancelThrow}
 import cats.mtl.Local
 import cats.syntax.all.*
-import cats.{Applicative, Monoid}
+import cats.Applicative
 import munit.{Location, ScalaCheckEffectSuite, TestOptions}
 import natchez.Span.Options.Defaults
 import natchez.Span.Options.SpanCreationPolicy.{Coalesce, Default, Suppress}
@@ -25,9 +25,6 @@ import org.scalacheck.effect.PropF
 class EntryPointOpsSuite
   extends InMemorySuite
     with ScalaCheckEffectSuite {
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val kernelMonoid: Monoid[Kernel] = Monoid.instance(Kernel(Map.empty), (a, b) => Kernel(a.toHeaders |+| b.toHeaders))
 
   testLift("liftRoutes uses the kernel from the request to continue or create a new trace") { implicit local: Local[IO, Span[IO]] =>
     _.liftRoutes(httpRoutes[IO], _).orNotFound

@@ -5,16 +5,14 @@
 package natchez
 package http4s
 
-import cats.data.{Chain, Kleisli}
+import cats.data.Kleisli
 import cats.effect.{IO, MonadCancelThrow}
 import munit.CatsEffectSuite
-import natchez.Span.Options.SpanCreationPolicy
-import natchez.Span.SpanKind
-import org.scalacheck.{Arbitrary, Gen}
-import org.scalacheck.Arbitrary.arbitrary
 import org.typelevel.ci.*
 
-trait InMemorySuite extends CatsEffectSuite {
+trait InMemorySuite
+  extends CatsEffectSuite
+    with Arbitraries {
   type Lineage = InMemory.Lineage
   val Lineage: InMemory.Lineage.type = InMemory.Lineage
   type NatchezCommand = InMemory.NatchezCommand
@@ -61,69 +59,6 @@ trait InMemorySuite extends CatsEffectSuite {
         assertEquals(history.toList, expectedHistory)
       }
     }
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val arbTraceValue: Arbitrary[TraceValue] = Arbitrary {
-    Gen.oneOf(
-      arbitrary[String].map(TraceValue.StringValue(_)),
-      arbitrary[Boolean].map(TraceValue.BooleanValue(_)),
-      arbitrary[Number].map(TraceValue.NumberValue(_)),
-    )
-  }
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val arbAttribute: Arbitrary[(String, TraceValue)] = Arbitrary {
-    for {
-      key <- arbitrary[String]
-      value <- arbitrary[TraceValue]
-    } yield key -> value
-  }
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val arbCIString: Arbitrary[CIString] = Arbitrary {
-    Gen.alphaLowerStr.map(CIString(_))
-  }
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val arbKernel: Arbitrary[Kernel] = Arbitrary {
-    arbitrary[Map[CIString, String]].map(Kernel(_))
-  }
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val arbSpanCreationPolicy: Arbitrary[SpanCreationPolicy] = Arbitrary {
-    Gen.oneOf(SpanCreationPolicy.Default, SpanCreationPolicy.Coalesce, SpanCreationPolicy.Suppress)
-  }
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val arbSpanKind: Arbitrary[SpanKind] = Arbitrary {
-    Gen.oneOf(
-      SpanKind.Internal,
-      SpanKind.Client,
-      SpanKind.Server,
-      SpanKind.Producer,
-      SpanKind.Consumer,
-    )
-  }
-
-  // TODO remove if https://github.com/typelevel/natchez/pull/1071 is merged
-  implicit val arbSpanOptions: Arbitrary[Span.Options] = Arbitrary {
-    for {
-      parentKernel <- arbitrary[Option[Kernel]]
-      spanCreationPolicy <- arbitrary[SpanCreationPolicy]
-      spanKind <- arbitrary[SpanKind]
-      links <- arbitrary[List[Kernel]].map(Chain.fromSeq)
-    } yield {
-      links.foldLeft {
-        parentKernel.foldLeft {
-          Span
-            .Options
-            .Defaults
-            .withSpanKind(spanKind)
-            .withSpanCreationPolicy(spanCreationPolicy)
-        }(_.withParentKernel(_))
-      }(_.withLink(_))
-    }
-  }
 
   val CustomHeaderName = ci"X-Custom-Header"
   val CorrelationIdName = ci"X-Correlation-Id"
