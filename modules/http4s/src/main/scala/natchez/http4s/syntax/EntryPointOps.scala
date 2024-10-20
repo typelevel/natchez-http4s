@@ -5,12 +5,13 @@
 package natchez.http4s.syntax
 
 import cats.~>
-import cats.data.{ Kleisli, OptionT }
+import cats.data.{Kleisli, OptionT}
 import cats.data.Kleisli.applyK
 import cats.effect.MonadCancel
-import natchez.{ EntryPoint, Kernel, Span }
+import natchez.{EntryPoint, Kernel, Span}
 import org.http4s.HttpRoutes
 import cats.effect.Resource
+import natchez.http4s.DefaultValues
 import org.http4s.server.websocket.WebSocketBuilder2
 import org.typelevel.ci.CIString
 
@@ -120,26 +121,7 @@ trait EntryPointOps[F[_]] { outer =>
 }
 
 object EntryPointOps {
-  val ExcludedHeaders: Set[CIString] = {
-    import org.http4s.headers._
-    import org.typelevel.ci._
-
-    val payload = Set(
-      `Content-Length`.name,
-      ci"Content-Type",
-      `Content-Range`.name,
-      ci"Trailer",
-      `Transfer-Encoding`.name,
-    )
-
-    val security = Set(
-      Authorization.name,
-      Cookie.name,
-      `Set-Cookie`.name,
-    )
-
-    payload ++ security
-  }
+  val ExcludedHeaders: Set[CIString] = DefaultValues.ExcludedHeaders
 }
 
 trait ToEntryPointOps {
