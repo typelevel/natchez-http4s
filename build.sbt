@@ -1,6 +1,6 @@
 ThisBuild / tlBaseVersion := "0.6"
 
-val http4sVersion           = "0.23.28"
+val http4sVersion           = "0.23.29"
 val natchezVersion          = "0.3.7"
 val scala212Version         = "2.12.20"
 val scala213Version         = "2.13.15"
