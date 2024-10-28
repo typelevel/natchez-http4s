@@ -8,9 +8,10 @@ val scala3Version           = "3.3.4"
 val slf4jVersion            = "2.0.16"
 val munitCEVersion          = "2.0.0"
 val scalacheckEffectVersion = "2.0.0-M2"
+val catsMtlVersion          = "1.4.0"
 
 ThisBuild / organization := "org.tpolecat"
-ThisBuild / tlSonatypeUseLegacyHost := false
+ThisBuild / sonatypeCredentialHost := xerial.sbt.Sonatype.sonatypeLegacy
 ThisBuild / licenses := Seq(("MIT", url("http://opensource.org/licenses/MIT")))
 ThisBuild / homepage := Some(url("https://github.com/tpolecat/natchez-http4s"))
 ThisBuild / developers := List(
@@ -46,10 +47,26 @@ ThisBuild / scalaVersion := scala213Version
 ThisBuild / crossScalaVersions := Seq(scala212Version, scala213Version, scala3Version)
 
 lazy val root = tlCrossRootProject.aggregate(
+  core,
   http4s,
+  mtl,
   examples,
   docs
 )
+
+lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .in(file("modules/core"))
+  .settings(commonSettings)
+  .settings(
+    name        := "natchez-http4s-core",
+    description := "Natchez middleware for http4s.",
+    libraryDependencies ++= Seq(
+      "org.tpolecat" %%% "natchez-core"    % natchezVersion,
+      "org.http4s"   %%% "http4s-core"     % http4sVersion,
+    ),
+    tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "0.6.1").toMap
+  )
 
 lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
@@ -59,13 +76,30 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     name        := "natchez-http4s",
     description := "Natchez middleware for http4s.",
     libraryDependencies ++= Seq(
-      "org.tpolecat" %%% "natchez-core"    % natchezVersion,
-      "org.http4s"   %%% "http4s-core"     % http4sVersion,
       "org.http4s"   %%% "http4s-client"   % http4sVersion,
       "org.http4s"   %%% "http4s-server"   % http4sVersion,
       "org.tpolecat" %%% "natchez-testkit" % natchezVersion % Test,
     )
   )
+  .dependsOn(core)
+
+lazy val mtl = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .in(file("modules/mtl"))
+  .settings(commonSettings)
+  .settings(
+    name        := "natchez-http4s-mtl",
+    description := "Natchez middleware for http4s with cats-mtl Local[F, Span[F]] semantics.",
+    libraryDependencies ++= Seq(
+      "org.tpolecat"  %%% "natchez-mtl"     % natchezVersion,
+      "org.http4s"    %%% "http4s-core"     % http4sVersion,
+      "org.http4s"    %%% "http4s-server"   % http4sVersion,
+      "org.typelevel" %%% "cats-mtl"        % catsMtlVersion,
+      "org.tpolecat"  %%% "natchez-testkit" % natchezVersion % Test,
+    ),
+    tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "0.6.1").toMap
+  )
+  .dependsOn(core, http4s % "test->test")
 
 lazy val examples = project
   .in(file("modules/examples"))
