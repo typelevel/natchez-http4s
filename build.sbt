@@ -11,7 +11,6 @@ val scalacheckEffectVersion = "2.0.0-M2"
 val catsMtlVersion          = "1.4.0"
 
 ThisBuild / organization := "org.tpolecat"
-ThisBuild / sonatypeCredentialHost := xerial.sbt.Sonatype.sonatypeLegacy
 ThisBuild / licenses := Seq(("MIT", url("http://opensource.org/licenses/MIT")))
 ThisBuild / homepage := Some(url("https://github.com/tpolecat/natchez-http4s"))
 ThisBuild / developers := List(
