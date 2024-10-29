@@ -22,6 +22,7 @@ ThisBuild / mergifyStewardConfig := Some(
     mergeMinors = true
   )
 )
+ThisBuild / tlCiReleaseBranches += "test-publishing"
 
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
 
