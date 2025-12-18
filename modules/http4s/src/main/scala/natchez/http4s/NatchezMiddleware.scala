@@ -43,21 +43,35 @@ object NatchezMiddleware {
    * - "error.stacktrace" -> Exception stack trace as a multi-line string
    * - "cancelled"        -> true // only present in case of cancellation
    */
-  def server[F[_]: Trace](routes: HttpRoutes[F])(
-    implicit ev: MonadCancel[F, Throwable]
-  ): HttpRoutes[F] =
+  def server[F[_]: Trace : MonadCancelThrow](routes: HttpRoutes[F]): HttpRoutes[F] =
+    server(routes, useOpenTelemetrySemanticConventions = false)
+
+  def server[F[_]: Trace : MonadCancelThrow](routes: HttpRoutes[F],
+                                             useOpenTelemetrySemanticConventions: Boolean,
+                                            ): HttpRoutes[F] =
     Kleisli { req =>
 
       val addRequestFields: F[Unit] =
-        Trace[F].put(
-          Tags.http.method(req.method.name),
-          Tags.http.url(req.uri.renderString),
-        )
+        if (useOpenTelemetrySemanticConventions)
+          Trace[F].put(
+            "http.request.method" -> req.method,
+            "url.full" -> req.uri,
+          )
+        else
+          Trace[F].put(
+            Tags.http.method(req.method.name),
+            Tags.http.url(req.uri.renderString),
+          )
 
       def addResponseFields(res: Response[F]): F[Unit] =
-        Trace[F].put(
-          Tags.http.status_code(res.status.code.toString)
-        )
+        if (useOpenTelemetrySemanticConventions)
+          Trace[F].put(
+            "http.response.status_code" -> res.status.code,
+          )
+        else
+          Trace[F].put(
+            Tags.http.status_code(res.status.code.toString)
+          )
 
       def addErrorFields(e: Throwable): F[Unit] =
         Trace[F].put(

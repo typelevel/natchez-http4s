@@ -122,20 +122,20 @@ class NatchezMiddlewareSuite
           maybeUrlScheme.map(scheme => UrlAttributes.URL_SCHEME.getKey -> StringValue(scheme.value))
 
         val requestTagsFromServerMiddleware =
-          /*if (useOpenTelemetrySemanticConventions) List(
+          if (useOpenTelemetrySemanticConventions) List(
             HttpAttributes.HTTP_REQUEST_METHOD.getKey -> StringValue("GET"),
             UrlAttributes.URL_FULL.getKey -> StringValue(request.uri.renderString),
           )
-          else*/ List(
+          else List(
             "http.method" -> StringValue("GET"),
             "http.url" -> StringValue(request.uri.renderString)
           )
 
         val responseTagsFromServerMiddleware =
-          /*if (useOpenTelemetrySemanticConventions) List(
+          if (useOpenTelemetrySemanticConventions) List(
             HttpAttributes.HTTP_RESPONSE_STATUS_CODE.getKey -> NumberValue(200)
           )
-          else*/ List(
+          else List(
             "http.status_code" -> StringValue("200")
           )
 
@@ -187,7 +187,7 @@ class NatchezMiddlewareSuite
         NatchezMiddleware.clientWithAttributes(echoHeadersClient[F], useOpenTelemetrySemanticConventions)(additionalAttributes *)
     }
 
-    val server = NatchezMiddleware.server(proxyRoutes(client))
+    val server = NatchezMiddleware.server(proxyRoutes(client), useOpenTelemetrySemanticConventions)
     server
   }
 
