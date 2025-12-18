@@ -7,10 +7,12 @@ package natchez.http4s
 import cats.Monad
 import cats.data.{Chain, Kleisli}
 import cats.effect.{IO, MonadCancelThrow, Resource}
+import cats.syntax.all.*
+import io.opentelemetry.semconv.{HttpAttributes, ServerAttributes, UrlAttributes}
 import munit.ScalaCheckEffectSuite
 import natchez.*
 import natchez.Span.SpanKind
-import natchez.TraceValue.StringValue
+import natchez.TraceValue.{NumberValue, StringValue}
 import natchez.http4s.syntax.entrypoint.*
 import org.http4s.*
 import org.http4s.client.Client
@@ -56,7 +58,7 @@ class NatchezMiddlewareSuite
     for {
       ref      <- IO.ref(Chain.empty[(Lineage, NatchezCommand)])
       ep       <- IO.pure(new InMemory.EntryPoint(ref))
-      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](None)))
+      routes   <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](None, useOpenTelemetrySemanticConventions = false)))
       response <- routes.orNotFound.run(request)
     } yield {
       assertEquals(response.status.code, 200)
@@ -66,61 +68,109 @@ class NatchezMiddlewareSuite
 
   test("generate proper tracing history") {
     PropF.forAllF { (userSpecifiedTags: List[(String, TraceValue)],
-                     maybeSpanOptions: Option[Span.Options]) =>
-      val request = Request[IO](
+                     maybeSpanOptions: Option[Span.Options],
+                     maybeUrlScheme: Option[Uri.Scheme],
+                     maybeUriAuthority: Option[Uri.Authority],
+                     maybeHostHeader: Option[headers.Host],
+                     useOpenTelemetrySemanticConventions: Boolean,
+                    ) =>
+      val request = maybeHostHeader.foldl(Request[IO](
         method = Method.GET,
-        uri = uri"/hello/some-name",
+        uri = uri"/hello/some-name".copy(authority = maybeUriAuthority, scheme = maybeUrlScheme),
         headers = Headers(
           Header.Raw(CustomHeaderName, "external"),
-          Header.Raw(CorrelationIdName, "id-123")
+          Header.Raw(CorrelationIdName, "id-123"),
         )
-      )
+      ))(_.putHeaders(_))
 
       val expectedHistory = {
         val requestKernel = Kernel(
-          Map(CustomHeaderName -> "external", CorrelationIdName -> "id-123")
+          Map(CustomHeaderName -> "external", CorrelationIdName -> "id-123") ++ maybeHostHeader.map { header =>
+            headers.Host.headerInstance.name -> headers.Host.headerInstance.value(header)
+          }.toMap
         )
 
-        val clientRequestTags = List(
-          "client.http.uri" -> StringValue("/some-name"),
-          "client.http.method" -> StringValue("GET")
-        )
+        val requestTagsFromClientMiddleware =
+          if (useOpenTelemetrySemanticConventions) List(
+            UrlAttributes.URL_FULL.getKey -> StringValue(request.uri.withPath(Root / "some-name").renderString),
+            HttpAttributes.HTTP_REQUEST_METHOD.getKey -> StringValue("GET"),
+          )
+          else List(
+            "client.http.uri" -> StringValue(request.uri.withPath(Root / "some-name").renderString),
+            "client.http.method" -> StringValue("GET")
+          )
 
-        val clientResponseTags = List(
-          "client.http.status_code" -> StringValue("200")
-        )
+        val responseTagsFromClientMiddleware =
+          if (useOpenTelemetrySemanticConventions) List(
+            HttpAttributes.HTTP_RESPONSE_STATUS_CODE.getKey -> NumberValue(200)
+          )
+          else List(
+            "client.http.status_code" -> NumberValue(200)
+          )
 
-        val requestTags = List(
-          "http.method" -> StringValue("GET"),
-          "http.url" -> StringValue("/hello/some-name")
-        )
+        val serverAddressTag: Option[(String, TraceValue)] =
+          maybeUriAuthority.map(_.host.renderString)
+            .orElse(maybeHostHeader.map(_.host))
+            .map(host => ServerAttributes.SERVER_ADDRESS.getKey -> StringValue(host))
 
-        val responseTags = List(
-          "http.status_code" -> StringValue("200")
-        )
+        val serverPortTag: Option[(String, TraceValue)] =
+          maybeUriAuthority.flatMap(_.port)
+            .orElse(maybeHostHeader.flatMap(_.port))
+            .map(port => ServerAttributes.SERVER_PORT.getKey -> NumberValue(port))
+
+        val urlSchemeTag: Option[(String, TraceValue)] =
+          maybeUrlScheme.map(scheme => UrlAttributes.URL_SCHEME.getKey -> StringValue(scheme.value))
+
+        val requestTagsFromServerMiddleware =
+          /*if (useOpenTelemetrySemanticConventions) List(
+            HttpAttributes.HTTP_REQUEST_METHOD.getKey -> StringValue("GET"),
+            UrlAttributes.URL_FULL.getKey -> StringValue(request.uri.renderString),
+          )
+          else*/ List(
+            "http.method" -> StringValue("GET"),
+            "http.url" -> StringValue(request.uri.renderString)
+          )
+
+        val responseTagsFromServerMiddleware =
+          /*if (useOpenTelemetrySemanticConventions) List(
+            HttpAttributes.HTTP_RESPONSE_STATUS_CODE.getKey -> NumberValue(200)
+          )
+          else*/ List(
+            "http.status_code" -> StringValue("200")
+          )
 
         val spanOptions = maybeSpanOptions.getOrElse(Span.Options.Defaults.withSpanKind(SpanKind.Client))
         val kernel = maybeSpanOptions.flatMap(_.parentKernel)
 
+        val clientSpanName = if (useOpenTelemetrySemanticConventions) request.method.name else "http4s-client-request"
+
         List(
-          (Lineage.Root, NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
-          (Lineage.Root("/hello/some-name"), NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
-          (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.CreateSpan("http4s-client-request", kernel, spanOptions)),
-          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.AskKernel(requestKernel)),
-          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientRequestTags)),
-          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(userSpecifiedTags)),
-          (Lineage.Root("/hello/some-name") / "call-proxy" / "http4s-client-request", NatchezCommand.Put(clientResponseTags)),
-          (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.ReleaseSpan("http4s-client-request")),
-          (Lineage.Root("/hello/some-name"), NatchezCommand.ReleaseSpan("call-proxy")),
-          (Lineage.Root("/hello/some-name"), NatchezCommand.Put(requestTags)),
-          (Lineage.Root("/hello/some-name"), NatchezCommand.Put(responseTags)),
-          (Lineage.Root, NatchezCommand.ReleaseRootSpan("/hello/some-name"))
+          List(
+            (Lineage.Root, NatchezCommand.CreateRootSpan("/hello/some-name", requestKernel, Span.Options.Defaults)),
+            (Lineage.Root("/hello/some-name"), NatchezCommand.CreateSpan("call-proxy", None, Span.Options.Defaults)),
+            (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.CreateSpan(clientSpanName, kernel, spanOptions)),
+            (Lineage.Root("/hello/some-name") / "call-proxy" / clientSpanName, NatchezCommand.AskKernel(requestKernel)),
+            (Lineage.Root("/hello/some-name") / "call-proxy" / clientSpanName, NatchezCommand.Put(requestTagsFromClientMiddleware)),
+          ),
+          List(serverAddressTag, serverPortTag, urlSchemeTag).flatMap(
+            _.map(tag => (Lineage.Root("/hello/some-name") / "call-proxy" / clientSpanName, NatchezCommand.Put(List(tag))))
+          ),
+          List(
+            (Lineage.Root("/hello/some-name") / "call-proxy" / clientSpanName, NatchezCommand.Put(userSpecifiedTags)),
+            (Lineage.Root("/hello/some-name") / "call-proxy" / clientSpanName, NatchezCommand.Put(responseTagsFromClientMiddleware)),
+            (Lineage.Root("/hello/some-name") / "call-proxy", NatchezCommand.ReleaseSpan(clientSpanName)),
+            (Lineage.Root("/hello/some-name"), NatchezCommand.ReleaseSpan("call-proxy")),
+            (Lineage.Root("/hello/some-name"), NatchezCommand.Put(requestTagsFromServerMiddleware)),
+            (Lineage.Root("/hello/some-name"), NatchezCommand.Put(responseTagsFromServerMiddleware)),
+            (Lineage.Root, NatchezCommand.ReleaseRootSpan("/hello/some-name")),
+          )
         )
+          .flatten
       }
 
       for {
         ep <- InMemory.EntryPoint.create[IO]
-        routes <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](maybeSpanOptions, userSpecifiedTags *)))
+        routes <- IO.pure(ep.liftT(httpRoutes[Kleisli[IO, natchez.Span[IO], *]](maybeSpanOptions, useOpenTelemetrySemanticConventions, userSpecifiedTags *)))
         _ <- routes.orNotFound.run(request)
         history <- ep.ref.get
       } yield assertEquals(history.toList, expectedHistory)
@@ -128,12 +178,13 @@ class NatchezMiddlewareSuite
   }
 
   private def httpRoutes[F[_]: MonadCancelThrow: Trace](maybeSpanOptions: Option[Span.Options],
+                                                        useOpenTelemetrySemanticConventions: Boolean,
                                                         additionalAttributes: (String, TraceValue)*): HttpRoutes[F] = {
     val client = maybeSpanOptions match {
       case Some(spanOptions) =>
-        NatchezMiddleware.clientWithAttributes(echoHeadersClient[F], spanOptions)(additionalAttributes *)
+        NatchezMiddleware.clientWithAttributes(echoHeadersClient[F], spanOptions, useOpenTelemetrySemanticConventions)(additionalAttributes *)
       case None =>
-        NatchezMiddleware.clientWithAttributes(echoHeadersClient[F])(additionalAttributes *)
+        NatchezMiddleware.clientWithAttributes(echoHeadersClient[F], useOpenTelemetrySemanticConventions)(additionalAttributes *)
     }
 
     val server = NatchezMiddleware.server(proxyRoutes(client))
@@ -147,12 +198,12 @@ class NatchezMiddlewareSuite
 
   private def proxyRoutes[F[_]: Monad: Trace](client: Client[F]): HttpRoutes[F] = {
     HttpRoutes.of[F] {
-      case GET -> Root / "hello" / name =>
-        val request = Request[F](
+      case incomingRequest @ GET -> Root / "hello" / name =>
+        val request = incomingRequest.headers.get[headers.Host].foldl(Request[F](
           method = Method.GET,
-          uri = Uri(path = Root / name),
+          uri = incomingRequest.uri.withPath(Root / name),
           headers = Headers(Header.Raw(CustomHeaderName, "internal"))
-        )
+        ))(_.putHeaders(_))
 
         Trace[F].span("call-proxy") {
           client.toHttpApp.run(request)

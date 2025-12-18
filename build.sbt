@@ -1,7 +1,7 @@
 ThisBuild / tlBaseVersion := "0.6"
 
 val http4sVersion           = "0.23.33"
-val natchezVersion          = "0.3.8"
+val natchezVersion          = "0.3.8-134-e5a1826-SNAPSHOT"
 val scala212Version         = "2.12.21"
 val scala213Version         = "2.13.18"
 val scala3Version           = "3.3.7"
@@ -78,6 +78,10 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "org.http4s"   %%% "http4s-client"   % http4sVersion,
       "org.http4s"   %%% "http4s-server"   % http4sVersion,
       "org.tpolecat" %%% "natchez-testkit" % natchezVersion % Test,
+      "com.comcast" %%% "ip4s-test-kit" % "3.7.0" % Test,
+      "io.opentelemetry" % "opentelemetry-sdk-common" % "1.57.0" % Test,
+      "io.opentelemetry.semconv" % "opentelemetry-semconv" % "1.37.0" % Test,
+      "io.opentelemetry.semconv" % "opentelemetry-semconv-incubating" % "1.37.0-alpha" % Test,
     )
   )
   .dependsOn(core)
