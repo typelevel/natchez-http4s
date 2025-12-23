@@ -7,7 +7,11 @@ package http4s
 
 import cats.data.Kleisli
 import cats.effect.{IO, MonadCancelThrow}
+import com.comcast.ip4s.Arbitraries.*
+import com.comcast.ip4s.{Hostname, Port}
 import munit.CatsEffectSuite
+import org.http4s.{Uri, headers}
+import org.scalacheck.{Arbitrary, Gen}
 import org.typelevel.ci.*
 
 trait InMemorySuite
@@ -63,4 +67,21 @@ trait InMemorySuite
   val CustomHeaderName = ci"X-Custom-Header"
   val CorrelationIdName = ci"X-Correlation-Id"
 
+  implicit val arbUriAuthority: Arbitrary[Uri.Authority] = Arbitrary {
+    for {
+      host <- Arbitrary.arbitrary[Hostname]
+      port <- Arbitrary.arbitrary[Option[Port]]
+    } yield Uri.Authority(host = Uri.Host.fromIp4sHost(host), port = port.map(_.value))
+  }
+
+  implicit val arbHostHeader: Arbitrary[headers.Host] = Arbitrary {
+    for {
+      host <- Arbitrary.arbitrary[Hostname]
+      port <- Arbitrary.arbitrary[Option[Port]]
+    } yield headers.Host(host.toString, port.map(_.value))
+  }
+
+  implicit val arbUriScheme: Arbitrary[Uri.Scheme] = Arbitrary {
+    Gen.oneOf(Uri.Scheme.http, Uri.Scheme.https)
+  }
 }
