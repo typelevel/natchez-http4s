@@ -1,14 +1,14 @@
 ThisBuild / tlBaseVersion := "0.6"
 
-val http4sVersion           = "0.23.33"
-val natchezVersion          = "0.3.9"
+val http4sVersion           = "0.23.34"
+val natchezVersion          = "0.3.10"
 val scala212Version         = "2.12.21"
 val scala213Version         = "2.13.18"
 val scala3Version           = "3.3.7"
 val slf4jVersion            = "2.0.17"
-val munitCEVersion          = "2.1.0"
-val scalacheckEffectVersion = "2.0.0-M2"
-val catsMtlVersion          = "1.4.0"
+val munitCEVersion          = "2.2.0"
+val scalacheckEffectVersion = "2.1.0"
+val catsMtlVersion          = "1.6.0"
 
 ThisBuild / organization := "org.tpolecat"
 ThisBuild / licenses := Seq(("MIT", url("http://opensource.org/licenses/MIT")))
@@ -66,6 +66,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     ),
     tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "0.6.1").toMap
   )
+  .nativeSettings(tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "0.6.2").toMap)
 
 lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
@@ -80,6 +81,7 @@ lazy val http4s = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "org.tpolecat" %%% "natchez-testkit" % natchezVersion % Test,
     )
   )
+  .nativeSettings(tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "0.6.2").toMap)
   .dependsOn(core)
 
 lazy val mtl = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -98,6 +100,7 @@ lazy val mtl = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     ),
     tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "0.6.1").toMap
   )
+  .nativeSettings(tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "0.6.2").toMap)
   .dependsOn(core, http4s % "test->test")
 
 lazy val examples = project
