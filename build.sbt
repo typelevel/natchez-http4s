@@ -8,7 +8,7 @@ val scala3Version           = "3.3.8"
 val slf4jVersion            = "2.0.18"
 val munitCEVersion          = "2.2.0"
 val scalacheckEffectVersion = "2.1.0"
-val catsMtlVersion          = "1.6.0"
+val catsMtlVersion          = "1.7.0"
 
 ThisBuild / organization := "org.tpolecat"
 ThisBuild / licenses := Seq(("MIT", url("http://opensource.org/licenses/MIT")))
